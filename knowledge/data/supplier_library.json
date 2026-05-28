@@ -1,0 +1,122 @@
+[
+  {
+    "category": "电风扇",
+    "sourcing_region": ["浙江慈溪", "广东顺德", "浙江义乌"],
+    "logistics_note": "顺德物流便宜（产业集群），慈溪风扇专线多",
+    "tips": "小风扇义乌货便宜但电机质量一般；顺德大厂品质好但MOQ高。建议小批量试单走义乌，稳定后转顺德。夏季品要提前2-3个月备货。",
+    "products": [
+      {"name": "手持小风扇", "wholesale_price": "6-18", "moq": "50-200", "moq_price": "10", "supplier_types": ["义乌小商品厂", "广东小家电厂"], "sourcing_notes": "公模多，价格透明，差异化靠外观和包装"},
+      {"name": "桌面台扇", "wholesale_price": "15-40", "moq": "30-100", "moq_price": "25", "supplier_types": ["顺德风扇厂", "慈溪风扇厂"], "sourcing_notes": "顺德品质好，慈溪价格低。USB供电款更受欢迎"},
+      {"name": "挂脖风扇", "wholesale_price": "12-28", "moq": "50-200", "moq_price": "18", "supplier_types": ["深圳电子厂", "义乌小家电"], "sourcing_notes": "2023-2025年爆款，深圳方案新，义乌价格低"},
+      {"name": "落地扇", "wholesale_price": "40-120", "moq": "20-100", "moq_price": "65", "supplier_types": ["顺德品牌代工厂", "慈溪组装厂"], "sourcing_notes": "大件物流成本高，建议找近的供应商。品牌代工剩余产能可能接小单"}
+    ]
+  },
+  {
+    "category": "手机壳",
+    "sourcing_region": ["广东深圳", "广东广州", "广东汕头"],
+    "logistics_note": "深圳华强北周边聚集了大量手机壳工厂，新品快",
+    "tips": "手机壳更新极快，新款iPhone上市前就要备货。华强北档口很多支持混批。建议走一件代发模式测款，爆了再大批量。",
+    "products": [
+      {"name": "硅胶软壳", "wholesale_price": "2-6", "moq": "100-500", "moq_price": "3.5", "supplier_types": ["深圳硅胶厂", "汕头注塑厂"], "sourcing_notes": "公模成本极低，私模开模费约2000-5000元。TPU+PC材质是当前主流"},
+      {"name": "磁吸壳", "wholesale_price": "6-18", "moq": "50-200", "moq_price": "10", "supplier_types": ["深圳磁吸配件厂"], "sourcing_notes": "iPhone磁吸是刚需，安卓磁吸需求上升中。磁圈质量影响用户体验"},
+      {"name": "防水壳", "wholesale_price": "10-25", "moq": "30-100", "moq_price": "16", "supplier_types": ["深圳户外配件厂"], "sourcing_notes": "专业防水壳门槛高，供应商少，利润空间大"},
+      {"name": "联名/IP壳", "wholesale_price": "8-25", "moq": "100-300", "moq_price": "15", "supplier_types": ["广州印刷厂", "深圳UV印刷厂"], "sourcing_notes": "需要IP授权（热门动漫/游戏），授权费5000-50000不等。无授权有法律风险"}
+    ]
+  },
+  {
+    "category": "蓝牙耳机",
+    "sourcing_region": ["广东深圳", "广东东莞"],
+    "logistics_note": "深圳是蓝牙耳机产业集群，方案公司+组装厂完整配套",
+    "tips": "白牌耳机价格竞争惨烈，品质参差。建议找有QC流程的中型工厂，不要贪便宜。芯片方案选洛达/杰里/中科蓝讯，对应不同价位。",
+    "products": [
+      {"name": "半入耳式", "wholesale_price": "12-45", "moq": "50-300", "moq_price": "20", "supplier_types": ["深圳耳机方案商", "东莞组装厂"], "sourcing_notes": "洛达方案品质好成本高，杰里方案性价比高，中科方案最便宜"},
+      {"name": "入耳式降噪", "wholesale_price": "25-80", "moq": "50-200", "moq_price": "40", "supplier_types": ["深圳降噪方案商"], "sourcing_notes": "ANC降噪技术门槛高，低价位的降噪效果有限。芯片建议选络达或恒玄"},
+      {"name": "头戴式", "wholesale_price": "20-60", "moq": "30-100", "moq_price": "35", "supplier_types": ["东莞耳机厂"], "sourcing_notes": "头戴式比入耳式利润率高，但出货量小。电竞风格好卖"},
+      {"name": "运动耳机", "wholesale_price": "15-45", "moq": "50-200", "moq_price": "25", "supplier_types": ["深圳运动耳机厂"], "sourcing_notes": "挂耳式+防水IPX5以上是基本要求。韶音骨传导的平价替代品有市场"}
+    ]
+  },
+  {
+    "category": "文具",
+    "sourcing_region": ["浙江义乌", "浙江宁波", "广东汕头"],
+    "logistics_note": "义乌是最大的文具集散地，品种全起批量低",
+    "tips": "文具整体客单价低，利润靠走量。义乌小商品价格有优势，宁波得力体系质量好。建议线上店铺用品牌货引流，白牌高毛利品赚钱。",
+    "products": [
+      {"name": "中性笔套装", "wholesale_price": "1.5-5", "moq": "200-1000", "moq_price": "2.5", "supplier_types": ["义乌制笔厂", "宁波文具厂"], "sourcing_notes": "笔芯质量是关键，客户复购看书写体验。推荐用主流品牌同款笔芯供应商"},
+      {"name": "笔记本/手账", "wholesale_price": "3-12", "moq": "100-500", "moq_price": "6", "supplier_types": ["义乌印刷厂", "温州纸品厂"], "sourcing_notes": "封面设计是最大卖点，内页布局要有差异化。手账用户对纸张质感要求高"},
+      {"name": "桌面收纳", "wholesale_price": "3-10", "moq": "50-200", "moq_price": "5", "supplier_types": ["义乌塑料厂", "广东收纳用品厂"], "sourcing_notes": "亚克力材质质感好利润高，塑料材质价格低"},
+      {"name": "创意文具礼盒", "wholesale_price": "10-35", "moq": "50-200", "moq_price": "18", "supplier_types": ["义乌礼品厂"], "sourcing_notes": "礼盒包装是核心溢价点。开学季和节日是主要销售节点"}
+    ]
+  },
+  {
+    "category": "宠物用品",
+    "sourcing_region": ["浙江义乌", "河北邢台", "江苏扬州"],
+    "logistics_note": "邢台是宠物窝具基地，扬州是宠物玩具基地",
+    "tips": "宠物用品客单价低但复购高。猫经济比狗经济增速快。建议从猫用品切入（猫抓板、猫玩具），供应链简单、快递友好。",
+    "products": [
+      {"name": "猫抓板", "wholesale_price": "3-12", "moq": "50-300", "moq_price": "5", "supplier_types": ["河北纸板厂", "义乌宠物用品厂"], "sourcing_notes": "瓦楞纸猫抓板成本极低，造型是溢价点。异形/卡通造型更好卖"},
+      {"name": "宠物梳子", "wholesale_price": "4-12", "moq": "50-200", "moq_price": "7", "supplier_types": ["义乌宠物用品厂", "广东五金厂"], "sourcing_notes": "去浮毛效果是核心卖点。不锈钢针比塑料针好"},
+      {"name": "宠物玩具", "wholesale_price": "2-8", "moq": "100-500", "moq_price": "4", "supplier_types": ["扬州宠物玩具厂", "义乌小商品"], "sourcing_notes": "耐咬是核心诉求。发声玩具利润高但容易坏，影响复购"},
+      {"name": "宠物背包/外出包", "wholesale_price": "15-60", "moq": "30-100", "moq_price": "30", "supplier_types": ["河北箱包厂", "义乌包袋厂"], "sourcing_notes": "透气性和安全性最重要。透明太空舱款当前流行"}
+    ]
+  },
+  {
+    "category": "家居日用",
+    "sourcing_region": ["浙江义乌", "广东揭阳", "福建泉州", "山东临沂"],
+    "logistics_note": "义乌百货全但质量一般；揭阳五金家居便宜；泉州塑料制品强",
+    "tips": "家居日用SKU极多，建议专注1-2个细分品类做深。收纳和厨房用品是最大的两个子类目。快递友好（轻便不易碎）的品优先。",
+    "products": [
+      {"name": "收纳盒/箱", "wholesale_price": "3-20", "moq": "50-300", "moq_price": "8", "supplier_types": ["义乌塑料厂", "泉州收纳用品厂"], "sourcing_notes": "可折叠收纳盒好卖（快递便宜）。透明可视+布艺收纳是趋势"},
+      {"name": "拖鞋", "wholesale_price": "3-10", "moq": "100-500", "moq_price": "5", "supplier_types": ["揭阳拖鞋厂", "义乌拖鞋批发"], "sourcing_notes": "EVA材质是主流，静音防滑是刚需。情侣款/亲子款溢价高"},
+      {"name": "垃圾桶", "wholesale_price": "3-15", "moq": "50-200", "moq_price": "8", "supplier_types": ["台州塑料厂", "义乌日用厂"], "sourcing_notes": "感应垃圾桶利润高（批发60-120），普通桶利润薄"},
+      {"name": "衣架/裤架", "wholesale_price": "1-5", "moq": "200-1000", "moq_price": "2", "supplier_types": ["义乌塑料厂", "广东五金厂"], "sourcing_notes": "植绒衣架防滑效果好溢价高。防滑无痕衣架是搜索热词"}
+    ]
+  },
+  {
+    "category": "食品零食",
+    "sourcing_region": ["福建漳州", "广东潮汕", "四川成都", "湖南长沙"],
+    "logistics_note": "食品需要食品经营许可证/生产许可证，注意合规门槛",
+    "tips": "食品门槛高（资质、保质期、仓储），但复购极高。建议从预包装零食切入，避免短保品（降低损耗）。休闲零食毛利率可达40-60%。",
+    "products": [
+      {"name": "肉干肉脯", "wholesale_price": "8-25", "moq": "50-200", "moq_price": "15", "supplier_types": ["漳州肉干厂", "潮汕食品厂"], "sourcing_notes": "靖江猪肉脯、漳州牛肉干是产业集群。独立小包装溢价高"},
+      {"name": "坚果礼盒", "wholesale_price": "15-50", "moq": "30-100", "moq_price": "28", "supplier_types": ["浙江坚果炒货厂", "河北炒货厂"], "sourcing_notes": "春节前是绝对旺季。每日坚果混合装是长年热销款"},
+      {"name": "代餐/健康零食", "wholesale_price": "6-25", "moq": "50-200", "moq_price": "15", "supplier_types": ["山东健康食品厂", "广东代工厂"], "sourcing_notes": "蛋白棒、代餐奶昔、魔芋制品是热门品类"},
+      {"name": "地方特产", "wholesale_price": "5-20", "moq": "30-100", "moq_price": "12", "supplier_types": ["各地特产加工厂"], "sourcing_notes": "差异化强、竞争小。但需要教育消费者，适合有地域特色的店铺"}
+    ]
+  },
+  {
+    "category": "数码配件",
+    "sourcing_region": ["广东深圳", "广东东莞"],
+    "logistics_note": "深圳华强北和东莞长安是数码配件核心产区",
+    "tips": "数码配件更新快、价格透明、利润薄。快充和GaN是当前增长点。建议走中高端路线避开白牌价格战。认证（MFi/QC/PD）是溢价来源。",
+    "products": [
+      {"name": "充电线（快充）", "wholesale_price": "2-8", "moq": "100-500", "moq_price": "4", "supplier_types": ["深圳数据线厂", "东莞电子厂"], "sourcing_notes": "编织线比胶皮线成本高1-2元但好卖。MFi认证线批发价+5-10元"},
+      {"name": "充电头", "wholesale_price": "5-25", "moq": "50-200", "moq_price": "12", "supplier_types": ["深圳GaN方案商", "东莞电源厂"], "sourcing_notes": "GaN充电器利润高（批发20-50），普通充电头价格透明"},
+      {"name": "手机支架", "wholesale_price": "2-8", "moq": "100-500", "moq_price": "4", "supplier_types": ["深圳手机配件厂", "义乌塑料厂"], "sourcing_notes": "磁吸支架是趋势，普通支架价格竞争激烈"},
+      {"name": "移动电源", "wholesale_price": "15-60", "moq": "30-100", "moq_price": "30", "supplier_types": ["深圳移动电源厂"], "sourcing_notes": "电芯质量是核心（A品电芯 vs B品电芯差价30%）。大容量+快充是标配"}
+    ]
+  },
+  {
+    "category": "服装配饰",
+    "sourcing_region": ["浙江杭州", "广东广州", "广东虎门", "浙江织里"],
+    "logistics_note": "广州沙河/十三行、杭州四季青是主要批发市场",
+    "tips": "服装库存风险大，建议从配饰切入（帽子、袜子、围巾），款式变化慢、库存压力小。做服装需要强选款能力和快速反应供应链。",
+    "products": [
+      {"name": "T恤/打底衫", "wholesale_price": "5-18", "moq": "50-200", "moq_price": "12", "supplier_types": ["广州沙河档口", "虎门服装厂"], "sourcing_notes": "纯棉厚磅T恤好卖（不透），200g以上是基本要求。白牌T恤利润薄，印花款溢价高"},
+      {"name": "帽子（棒球帽）", "wholesale_price": "3-12", "moq": "50-200", "moq_price": "7", "supplier_types": ["义乌帽子厂", "广州帽业厂"], "sourcing_notes": "刺绣款比印花款档次高。弯檐帽比平檐帽好卖"},
+      {"name": "袜子（潮袜）", "wholesale_price": "1-5", "moq": "100-500", "moq_price": "2.5", "supplier_types": ["诸暨袜子厂", "义乌袜子批发"], "sourcing_notes": "诸暨是全国袜子产业集群。联名/IP款利润高。中筒袜是主流"},
+      {"name": "围巾/丝巾", "wholesale_price": "3-15", "moq": "50-200", "moq_price": "8", "supplier_types": ["杭州丝绸厂", "义乌围巾批发"], "sourcing_notes": "仿羊绒围巾性价比高好卖，真丝围巾利润高但受众小"}
+    ]
+  },
+  {
+    "category": "母婴用品",
+    "sourcing_region": ["浙江义乌", "广东中山", "福建晋江"],
+    "logistics_note": "母婴用品安全标准严格，必须确认供应商资质和检测报告",
+    "tips": "母婴用户对品质极度敏感，宁可价格高也不要牺牲品质。好评率和复购率是生命线。建议先做婴儿玩具/用品（非食品类），降低合规风险。",
+    "products": [
+      {"name": "婴儿湿巾", "wholesale_price": "3-10", "moq": "100-500", "moq_price": "5", "supplier_types": ["福建日化厂", "广东纸品厂"], "sourcing_notes": "EDI纯水+无酒精+无香精是基础要求。厚实款（80g+）比薄款好卖"},
+      {"name": "奶瓶", "wholesale_price": "8-30", "moq": "50-200", "moq_price": "18", "supplier_types": ["中山母婴用品厂"], "sourcing_notes": "PPSU材质是主流（耐高温180度），玻璃瓶份额下降。需要食品级检测报告"},
+      {"name": "婴儿玩具", "wholesale_price": "5-20", "moq": "50-200", "moq_price": "12", "supplier_types": ["汕头澄海玩具厂", "义乌母婴厂"], "sourcing_notes": "澄海是全球玩具基地。3C认证是强制要求。牙胶+摇铃是新生儿必备品"},
+      {"name": "妈咪包", "wholesale_price": "10-40", "moq": "30-100", "moq_price": "22", "supplier_types": ["晋江包袋厂", "广州箱包厂"], "sourcing_notes": "防水+多隔层+可挂婴儿车是核心功能。颜值影响购买决策"}
+    ]
+  }
+]

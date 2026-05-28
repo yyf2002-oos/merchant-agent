@@ -1,0 +1,126 @@
+[
+  {
+    "category": "数码配件",
+    "title_patterns": [
+      "【品质推荐】{product_name} — 充电快/信号稳/手感好",
+      "{product_name} | 用过就回不去的{product_type}",
+      "还在用{old_type}？试试这款{product_name}，{feature}"
+    ],
+    "description_tips": [
+      "开头用场景痛点吸引注意",
+      "中间列参数（3-5个核心卖点, 每个不超过15字）",
+      "结尾放使用场景 + 售后保障"
+    ],
+    "seo_keywords": ["数码配件", "手机配件", "{product_type}推荐", "平价好物"],
+    "features_template": [
+      "✅ {feature_1}",
+      "✅ {feature_2}",
+      "✅ {feature_3}",
+      "✅ {feature_4}"
+    ]
+  },
+  {
+    "category": "家居日用",
+    "title_patterns": [
+      "居家好物🔥 {product_name} 用了就离不开",
+      "被问爆了的{product_name}，提升幸福感的神器",
+      "{product_name} ：{benefit}，终于找到了"
+    ],
+    "description_tips": [
+      "引发情感共鸣（懒惰/收纳/整洁等痛点）",
+      "展示改造前后的对比效果",
+      "实用参数 + 使用场景 + 清洁保养"
+    ],
+    "seo_keywords": ["家居好物", "收纳神器", "居家生活", "{product_type}推荐"],
+    "features_template": [
+      "✨ {feature_1}",
+      "✨ {feature_2}",
+      "✨ {feature_3}",
+      "✨ {feature_4}"
+    ]
+  },
+  {
+    "category": "服装配饰",
+    "title_patterns": [
+      "上身绝了！{product_name} 解锁{style}穿搭",
+      "{season}必入{product_name}，{target_audience}穿了都说好",
+      "{product_name} | {benefit}，{scene}就穿它"
+    ],
+    "description_tips": [
+      "尺码建议（身高体重参考）",
+      "材质面料的优势说明",
+      "搭配建议（一衣多穿）",
+      "洗护注意事项"
+    ],
+    "seo_keywords": ["穿搭推荐", "{product_type}", "{style}穿搭", "平价穿搭"],
+    "features_template": [
+      "👗 {feature_1}",
+      "👗 {feature_2}",
+      "👗 {feature_3}",
+      "👗 {feature_4}"
+    ]
+  },
+  {
+    "category": "食品饮料",
+    "title_patterns": [
+      "回购N次的{product_name}，{benefit}",
+      "这个{product_name}绝了，{scene}来一包/杯",
+      "{product_name} | {benefit}，{target_audience}必囤"
+    ],
+    "description_tips": [
+      "口感/味道详细描述",
+      "配料表干净/健康背书",
+      "食用场景（办公室/居家/户外）",
+      "保质期及存储方式"
+    ],
+    "seo_keywords": ["零食推荐", "美食", "{product_type}", "好吃不贵"],
+    "features_template": [
+      "🍽️ {feature_1}",
+      "🍽️ {feature_2}",
+      "🍽️ {feature_3}",
+      "🍽️ {feature_4}"
+    ]
+  },
+  {
+    "category": "母婴用品",
+    "title_patterns": [
+      "宝妈必看！{product_name} 让带娃轻松10倍",
+      "{product_name} ：{benefit}，{target_audience}都在用",
+      "后悔没早入的{product_name}，{benefit}"
+    ],
+    "description_tips": [
+      "安全认证/资质背书前置",
+      "材料工艺详细说明",
+      "分年龄段/体重使用建议",
+      "真实使用场景 + 妈妈反馈"
+    ],
+    "seo_keywords": ["母婴好物", "带娃神器", "{product_type}推荐", "新生儿"],
+    "features_template": [
+      "👶 {feature_1}",
+      "👶 {feature_2}",
+      "👶 {feature_3}",
+      "👶 {feature_4}"
+    ]
+  },
+  {
+    "category": "宠物用品",
+    "title_patterns": [
+      "铲屎官必入！{product_name} 毛孩子太爱了",
+      "{product_name} | {benefit}，{target_audience}都囤了",
+      "这个{product_name}让{pet_type}安静了一整天"
+    ],
+    "description_tips": [
+      "材质安全性承诺",
+      "适用宠物种类/体型/年龄",
+      "使用前后效果对比",
+      "宠物健康注意事项"
+    ],
+    "seo_keywords": ["宠物好物", "铲屎官必备", "{product_type}", "萌宠"],
+    "features_template": [
+      "🐾 {feature_1}",
+      "🐾 {feature_2}",
+      "🐾 {feature_3}",
+      "🐾 {feature_4}"
+    ]
+  }
+]

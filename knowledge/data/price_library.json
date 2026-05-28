@@ -1,0 +1,92 @@
+[
+  {
+    "category": "电风扇",
+    "subcategories": [
+      {"name": "手持小风扇", "price_range": "15-50", "cost_range": "8-20", "target": "学生/上班族", "features": ["便携", "USB充电", "低噪音"], "competition": "高"},
+      {"name": "桌面台扇", "price_range": "40-120", "cost_range": "20-50", "target": "学生/宿舍", "features": ["小巧", "摇头", "多档风速"], "competition": "高"},
+      {"name": "挂脖风扇", "price_range": "30-80", "cost_range": "15-35", "target": "户外/学生", "features": ["免手持", "续航长", "轻便"], "competition": "中"},
+      {"name": "落地扇", "price_range": "80-300", "cost_range": "50-150", "target": "家庭", "features": ["大风量", "遥控", "定时"], "competition": "中"}
+    ]
+  },
+  {
+    "category": "手机壳",
+    "subcategories": [
+      {"name": "硅胶软壳", "price_range": "10-30", "cost_range": "3-8", "target": "学生/通用", "features": ["防摔", "手感好", "多色"], "competition": "极高"},
+      {"name": "磁吸壳", "price_range": "25-60", "cost_range": "10-25", "target": "iPhone用户", "features": ["磁吸", "支架", "轻薄"], "competition": "高"},
+      {"name": "防水壳", "price_range": "30-80", "cost_range": "12-30", "target": "户外/游泳", "features": ["IP68防水", "浮潜可用"], "competition": "低"},
+      {"name": "联名/IP壳", "price_range": "40-100", "cost_range": "15-35", "target": "粉丝/年轻人", "features": ["IP授权", "限量", "收藏"], "competition": "中"}
+    ]
+  },
+  {
+    "category": "蓝牙耳机",
+    "subcategories": [
+      {"name": "半入耳式", "price_range": "30-150", "cost_range": "15-60", "target": "学生/通用", "features": ["舒适佩戴", "通话清晰", "长续航"], "competition": "极高"},
+      {"name": "入耳式降噪", "price_range": "80-300", "cost_range": "35-120", "target": "上班族/通勤", "features": ["主动降噪", "HiFi音质", "通透模式"], "competition": "高"},
+      {"name": "头戴式", "price_range": "60-200", "cost_range": "30-80", "target": "游戏/学习", "features": ["包耳", "麦克风", "有线无线两用"], "competition": "中"},
+      {"name": "运动耳机", "price_range": "40-150", "cost_range": "20-60", "target": "运动人群", "features": ["防汗", "稳固佩戴", "快充"], "competition": "中"}
+    ]
+  },
+  {
+    "category": "文具/办公用品",
+    "subcategories": [
+      {"name": "中性笔套装", "price_range": "10-30", "cost_range": "3-10", "target": "学生", "features": ["顺滑书写", "多色", "大容量"], "competition": "极高"},
+      {"name": "笔记本/手账", "price_range": "15-60", "cost_range": "5-20", "target": "学生/手账爱好者", "features": ["精美封面", "内页设计", "可平摊"], "competition": "高"},
+      {"name": "桌面收纳", "price_range": "10-40", "cost_range": "4-15", "target": "学生/上班族", "features": ["分类收纳", "节省空间", "高颜值"], "competition": "中"},
+      {"name": "创意文具礼盒", "price_range": "40-120", "cost_range": "15-40", "target": "送礼/学生", "features": ["礼盒包装", "多功能", "高颜值"], "competition": "中低"}
+    ]
+  },
+  {
+    "category": "宠物用品",
+    "subcategories": [
+      {"name": "猫抓板", "price_range": "15-50", "cost_range": "5-15", "target": "养猫人群", "features": ["耐磨", "可替换", "造型多样"], "competition": "高"},
+      {"name": "宠物梳子", "price_range": "20-60", "cost_range": "8-20", "target": "养宠人群", "features": ["去浮毛", "不伤皮肤", "易清理"], "competition": "中"},
+      {"name": "宠物玩具", "price_range": "10-40", "cost_range": "3-12", "target": "养宠人群", "features": ["耐咬", "发声", "互动"], "competition": "高"},
+      {"name": "宠物背包/外出包", "price_range": "50-200", "cost_range": "20-80", "target": "养宠人群", "features": ["透气", "便携", "安全"], "competition": "中"}
+    ]
+  },
+  {
+    "category": "家居日用",
+    "subcategories": [
+      {"name": "收纳盒/箱", "price_range": "15-80", "cost_range": "5-30", "target": "家庭/租房", "features": ["可折叠", "大容量", "透明可视"], "competition": "高"},
+      {"name": "拖鞋", "price_range": "15-50", "cost_range": "5-15", "target": "家庭/通用", "features": ["防滑", "静音", "柔软"], "competition": "高"},
+      {"name": "垃圾桶", "price_range": "10-60", "cost_range": "4-20", "target": "家庭", "features": ["带盖", "脚踏", "智能感应"], "competition": "中"},
+      {"name": "衣架/裤架", "price_range": "10-40", "cost_range": "3-12", "target": "家庭/租房", "features": ["防滑", "节省空间", "多功能"], "competition": "高"}
+    ]
+  },
+  {
+    "category": "食品零食",
+    "subcategories": [
+      {"name": "肉干肉脯", "price_range": "20-60", "cost_range": "10-30", "target": "通用", "features": ["高蛋白", "独立包装", "便携"], "competition": "高"},
+      {"name": "坚果礼盒", "price_range": "40-150", "cost_range": "20-70", "target": "送礼/家庭", "features": ["每日坚果", "混合装", "礼盒装"], "competition": "中"},
+      {"name": "代餐/健康零食", "price_range": "20-80", "cost_range": "8-35", "target": "减肥/健身", "features": ["低卡", "高饱腹", "无糖"], "competition": "中"},
+      {"name": "地方特产", "price_range": "15-60", "cost_range": "6-25", "target": "游客/送礼", "features": ["地道", "手工", "特色包装"], "competition": "低"}
+    ]
+  },
+  {
+    "category": "数码配件",
+    "subcategories": [
+      {"name": "充电线（快充）", "price_range": "10-40", "cost_range": "3-12", "target": "通用", "features": ["快充", "耐用编织线", "多接口"], "competition": "极高"},
+      {"name": "充电头", "price_range": "20-80", "cost_range": "8-30", "target": "通用", "features": ["快充协议", "多口", "GaN技术"], "competition": "高"},
+      {"name": "手机支架", "price_range": "10-40", "cost_range": "3-12", "target": "学生/上班族", "features": ["可调节", "稳固", "折叠便携"], "competition": "高"},
+      {"name": "移动电源", "price_range": "50-200", "cost_range": "25-80", "target": "学生/通勤", "features": ["大容量", "快充", "轻薄"], "competition": "高"}
+    ]
+  },
+  {
+    "category": "服装配饰",
+    "subcategories": [
+      {"name": "T恤/打底衫", "price_range": "20-80", "cost_range": "8-25", "target": "学生/通用", "features": ["纯棉", "基础款", "百搭"], "competition": "极高"},
+      {"name": "帽子（棒球帽）", "price_range": "15-50", "cost_range": "5-15", "target": "学生/年轻人", "features": ["防晒", "可调节", "刺绣"], "competition": "高"},
+      {"name": "袜子（潮袜）", "price_range": "5-25", "cost_range": "2-8", "target": "学生/年轻人", "features": ["联名", "长筒", "透气"], "competition": "高"},
+      {"name": "围巾/丝巾", "price_range": "15-60", "cost_range": "5-20", "target": "女性", "features": ["柔软", "多花色", "送礼"], "competition": "中"}
+    ]
+  },
+  {
+    "category": "母婴用品",
+    "subcategories": [
+      {"name": "婴儿湿巾", "price_range": "10-40", "cost_range": "4-12", "target": "宝妈", "features": ["无酒精", "厚实", "便携装"], "competition": "高"},
+      {"name": "奶瓶", "price_range": "30-100", "cost_range": "12-40", "target": "宝妈", "features": ["PPSU材质", "防胀气", "宽口径"], "competition": "中"},
+      {"name": "婴儿玩具", "price_range": "20-80", "cost_range": "8-30", "target": "宝妈", "features": ["安全材质", "早教", "色彩鲜艳"], "competition": "中"},
+      {"name": "妈咪包", "price_range": "40-150", "cost_range": "15-50", "target": "宝妈", "features": ["大容量", "多功能隔层", "防水"], "competition": "中低"}
+    ]
+  }
+]
