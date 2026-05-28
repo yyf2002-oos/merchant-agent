@@ -2,10 +2,19 @@
 
 import os
 
+# ── LLM 提供者选择 ──
+# "ollama" 或 "deepseek"
+LLM_PROVIDER = os.environ.get("LLM_PROVIDER", "ollama")
+
 # Ollama 配置
 OLLAMA_BASE = os.environ.get("OLLAMA_BASE", "http://localhost:11434")
 OLLAMA_MODEL = os.environ.get("OLLAMA_MODEL", "qwen2:7b")
 OLLAMA_FAST_MODEL = os.environ.get("OLLAMA_FAST_MODEL", "qwen2:1.5b")
+
+# DeepSeek 配置（支持 OpenAI 兼容格式）
+DEEPSEEK_API_KEY = os.environ.get("DEEPSEEK_API_KEY", "")
+DEEPSEEK_API_BASE = os.environ.get("DEEPSEEK_API_BASE", "https://api.deepseek.com")
+DEEPSEEK_MODEL = os.environ.get("DEEPSEEK_MODEL", "deepseek-chat")
 
 # Agent 配置
 AGENT_TIMEOUT = int(os.environ.get("AGENT_TIMEOUT", "300"))   # LLM 调用超时（秒）

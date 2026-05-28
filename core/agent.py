@@ -2,13 +2,13 @@
 
 import json
 import logging
-import httpx
 from typing import Any, Optional, Literal
 
-from config import OLLAMA_BASE, OLLAMA_MODEL, OLLAMA_FAST_MODEL, AGENT_TIMEOUT, MAX_RETRIES, LOG_LEVEL, REACT_MAX_ROUNDS
+from config import OLLAMA_MODEL, OLLAMA_FAST_MODEL, LOG_LEVEL, REACT_MAX_ROUNDS
 from core.tool import get_all_definitions, execute
 from core.memory import ConversationMemory
 from core.context import AgentContext
+from llm import call_llm
 
 logger = logging.getLogger(__name__)
 logger.setLevel(getattr(logging, LOG_LEVEL))
@@ -51,40 +51,12 @@ class ReActAgent:
         return [d for d in all_defs if d["function"]["name"] in self.allowed_tools]
 
     def _call_llm(self, messages: list[dict], tools: list[dict] = None, model: str = None) -> dict:
-        """调用 Ollama，返回完整响应消息"""
-        url = f"{OLLAMA_BASE}/api/chat"
+        """统一 LLM 调用（自动选择 Ollama/DeepSeek），返回完整响应消息"""
         used_model = model or self.model
-        payload = {
-            "model": used_model,
-            "messages": messages,
-            "stream": False,
-            "options": {"temperature": self.temperature},
-        }
-        if tools:
-            payload["tools"] = tools
+        logger.debug(f"Agent[{self.name}] 调用 model={used_model} tools={len(tools) if tools else 0}")
 
-        logger.debug(f"Agent[{self.name}] LLM 调用 model={used_model} tools={len(tools) if tools else 0}")
-
-        for attempt in range(MAX_RETRIES + 1):
-            try:
-                t0 = __import__('time').time()
-                with httpx.Client(timeout=AGENT_TIMEOUT) as client:
-                    resp = client.post(url, json=payload)
-                    resp.raise_for_status()
-                    result = resp.json()["message"]
-                elapsed = __import__('time').time() - t0
-                has_tool_calls = bool(result.get("tool_calls"))
-                logger.info(f"Agent[{self.name}] LLM 返回 attempt={attempt+1} 耗时={elapsed:.1f}s "
-                            f"tool_calls={has_tool_calls} len={len(result.get('content','') or '')}")
-                return result
-            except httpx.TimeoutException:
-                logger.warning(f"Agent[{self.name}] LLM 超时 attempt={attempt+1}/{MAX_RETRIES+1}")
-                if attempt < MAX_RETRIES:
-                    __import__('time').sleep(1)
-                    continue
-                return {"role": "assistant", "content": f"[Timeout] LLM 调用超时"}
-            except Exception as e:
-                logger.error(f"Agent[{self.name}] LLM 错误 attempt={attempt+1}/{MAX_RETRIES+1}: {e}")
+        result = call_llm(messages, model=used_model, temperature=self.temperature, tools=tools)
+        return result
                 if attempt < MAX_RETRIES:
                     __import__('time').sleep(1)
                     continue

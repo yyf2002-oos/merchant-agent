@@ -10,9 +10,9 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import csv
 import io
 import gradio as gr
-from llm import check_ollama, list_models, stream_chat
+from llm import check_llm, check_ollama, list_models, stream_chat
 from orchestrator import MerchantOrchestrator
-from config import LOG_LEVEL, LOG_FORMAT, RATE_LIMIT_ENABLED, RATE_LIMIT_MAX, RATE_LIMIT_WINDOW, CACHE_ENABLED
+from config import LOG_LEVEL, LOG_FORMAT, RATE_LIMIT_ENABLED, RATE_LIMIT_MAX, RATE_LIMIT_WINDOW, CACHE_ENABLED, LLM_PROVIDER
 
 # ── 日志配置 ──
 logging.basicConfig(level=getattr(logging, LOG_LEVEL), format=LOG_FORMAT)
@@ -40,15 +40,22 @@ def _check_rate_limit(ip: str) -> bool:
 
 
 def _ollama_check():
-    if not check_ollama():
-        return False, "❌ **Ollama 未运行！** 请先执行 `ollama serve` 启动服务。"
-    return True, ""
+    provider = LLM_PROVIDER
+    if provider == "deepseek":
+        ok, msg = check_llm()
+        if not ok:
+            return False, f"❌ **DeepSeek 不可用** — {msg}"
+        return True, ""
+    else:
+        if not check_ollama():
+            return False, "❌ **Ollama 未运行！** 请先执行 `ollama serve` 启动服务。"
+        return True, ""
 
 
 def check_env():
-    ollama_ok = check_ollama()
-    models = list_models() if ollama_ok else []
-    return ollama_ok, models
+    ok, msg = check_llm()
+    models = list_models() if ok else []
+    return ok, models, msg
 
 
 def agent_chat(message, history):
@@ -314,9 +321,10 @@ def export_batch_csv(results):
 # ===== 构建 Gradio 界面 =====
 
 def build_app():
-    ollama_ok, models = check_env()
-    status = "✅ 已连接" if ollama_ok else "❌ 未运行"
-    model_list = ", ".join(models[:4]) if models else "无"
+    ok, models, detail = check_env()
+    provider_label = LLM_PROVIDER.upper()
+    status = f"✅ {provider_label}" if ok else f"❌ {provider_label}"
+    model_list = ", ".join(models[:3]) if models else "无"
 
     with gr.Blocks(title="商家智能运营 Agent") as app:
         gr.Markdown("""# 🛒 商家智能运营 Agent
@@ -327,18 +335,18 @@ def build_app():
             cache_status = "✅" if CACHE_ENABLED else "❌"
             rate_status = "✅" if RATE_LIMIT_ENABLED else "❌"
             status_md = gr.Markdown(
-                f"**Ollama: {status}** | 模型: {model_list} "
+                f"**{status}** | 模型: {model_list} "
                 f"| 缓存: {cache_status} | 限流: {rate_status}"
             )
             refresh_btn = gr.Button("🔄 刷新状态", size="sm", scale=0)
 
         def refresh_status():
-            ok, models = check_env()
-            s = "✅" if ok else "❌"
-            ms = ", ".join(models[:4]) if models else "无"
+            ok, models, detail = check_env()
+            s = f"✅ {LLM_PROVIDER.upper()}" if ok else f"❌ {LLM_PROVIDER.upper()}"
+            ms = ", ".join(models[:3]) if models else "无"
             cs = "✅" if CACHE_ENABLED else "❌"
             rs = "✅" if RATE_LIMIT_ENABLED else "❌"
-            return f"**Ollama: {s}** | 模型: {ms} | 缓存: {cs} | 限流: {rs}"
+            return f"**{s}** | 模型: {ms} | 缓存: {cs} | 限流: {rs}"
 
         refresh_btn.click(refresh_status, outputs=status_md)
 
