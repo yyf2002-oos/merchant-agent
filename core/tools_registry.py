@@ -159,3 +159,37 @@ def generate_listing(product_name: str, category: str, features: str,
     }
     result = lister.run(info)
     return result.get("listing_content", "生成失败")
+
+
+# ─────────────────────────────────────────────
+# Tool 7: Product Price Manager
+# ─────────────────────────────────────────────
+@tool(description="Search manually recorded products by keyword, category, or price range")
+def search_product_db(keyword: str = "", category: str = "",
+                      max_price: float = 0, min_price: float = 0) -> str:
+    """搜索手动录入的商品价格库，返回匹配的商品列表（名称、价格、品类、来源平台）
+
+    使用场景：查询之前记录过的商品价格，做价格参考。
+    """
+    from tools.product_manager import search_products
+    results = search_products(keyword, category, max_price, min_price)
+    if not results:
+        return "商品库中未找到匹配的记录"
+    lines = [f"找到 {len(results)} 个商品："]
+    for r in results:
+        lines.append(f"· {r['name']} — ¥{r['price']} | {r.get('category','')} | {r.get('platform','')}")
+        if r.get("note"):
+            lines.append(f"  备注：{r['note']}")
+    return "\n".join(lines)
+
+
+@tool(description="Add a product record to personal price database (name, price, category, platform)")
+def add_product_record(name: str, price: float, category: str = "",
+                       platform: str = "", note: str = "") -> str:
+    """手动录入一个商品到价格库，供后续查询参考
+
+    使用场景：在1688/淘宝上看到了一个商品的价格，记录下来以后用。
+    """
+    from tools.product_manager import add_product
+    rec = add_product(name, price, category, platform, note=note)
+    return f"已记录：{rec['name']} ¥{rec['price']}（品类：{rec.get('category', '未分类')}）"

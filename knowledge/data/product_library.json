@@ -1,0 +1,32 @@
+[
+  {
+    "id": 1,
+    "name": "手持小风扇",
+    "price": 39.9,
+    "category": "电风扇",
+    "platform": "1688",
+    "source_url": "USB充电便携款",
+    "note": "",
+    "created_at": "2026-05-29 13:50"
+  },
+  {
+    "id": 2,
+    "name": "桌面台扇",
+    "price": 89,
+    "category": "电风扇",
+    "platform": "淘宝",
+    "source_url": "家用静音",
+    "note": "",
+    "created_at": "2026-05-29 13:50"
+  },
+  {
+    "id": 3,
+    "name": "硅胶手机壳",
+    "price": 15.9,
+    "category": "手机配件",
+    "platform": "拼多多",
+    "source_url": "iPhone通用",
+    "note": "",
+    "created_at": "2026-05-29 13:50"
+  }
+]

@@ -57,10 +57,6 @@ class ReActAgent:
 
         result = call_llm(messages, model=used_model, temperature=self.temperature, tools=tools)
         return result
-                if attempt < MAX_RETRIES:
-                    __import__('time').sleep(1)
-                    continue
-                return {"role": "assistant", "content": f"[Error] {e}"}
 
     # ── 规划 ──────────────────────────────────────
 
@@ -94,36 +90,47 @@ class ReActAgent:
 
     # ── 反思 ──────────────────────────────────────
 
-    def _reflect(self, user_input: str, full_messages: list[dict]) -> tuple[bool, str]:
-        """反思执行结果，判断是否需要补充
+    def _reflect(self, user_input: str, full_messages: list[dict],
+                 tool_results: list[str] = None) -> tuple[bool, str]:
+        """深度反思执行结果，判断质量和完整性
 
         Returns:
             (needs_more: bool, reflection: str)
         """
-        # 提取最后的部分对话作为反思上下文
         recent = full_messages[-8:] if len(full_messages) > 8 else full_messages
         conv_text = "\n".join(
             f"{'用户' if m['role'] == 'user' else '助手'}: "
-            f"{m.get('content', '') or '(调用工具)'}"[:200]
+            f"{m.get('content', '') or '(调用工具)'}"[:300]
             for m in recent
         )
 
-        prompt = f"""请反思以下执行结果，判断是否需要补充。
+        tool_check = ""
+        if tool_results:
+            errors = [r for r in tool_results if "[错误]" in r or "[超时]" in r or "失败" in r]
+            if errors:
+                tool_check = f"\n⚠️ 工具调用有错误：{len(errors)} 个\n" + "\n".join(e[:100] for e in errors[:3])
+
+        prompt = f"""请严格评估以下执行结果的质量。
 
 原始需求: {user_input}
 
 执行过程:
 {conv_text}
+{tool_check}
 
-请评估：
-1. 是否完整回答了用户的问题？(是/否)
-2. 是否调用了必要的工具？(是/否)
-3. 结果中有没有明显矛盾或错误？(是/否)
+评估标准（每一项都要严格打分）：
+1. [完整性] 是否完整回答了用户所有问题？(是/否)
+2. [工具使用] 是否调用了所有必要的工具获取了真实数据？(是/否)
+3. [准确性] 结果中有没有矛盾、错误、或编造的数据？(是/否)
+4. [可执行性] 给出的建议是否具体可执行，而不是空泛的套话？(是/否)
+5. [数据支撑] 重要结论是否有数据支撑，还是全靠推测？(是/否)
 
-如果以上全是"是"，输出：✅ 完成
-否则输出需要补充的内容："""
+评分规则：
+- 5项全是"是"  → ✅ 完成（输出这一行即可）
+- 有1项"否"   → 输出具体哪项不达标 + 需要补充什么
+- 有2项以上"否" → 输出 ❌ 需要重做 + 具体原因"""
         msg = self._call_llm([
-            {"role": "system", "content": "你是一个严格的质量检查员，只判断是否完成。"},
+            {"role": "system", "content": "你是严格的质量检查官。只根据证据判断，不放过任何质量问题。"},
             {"role": "user", "content": prompt},
         ], model=self.light_model)
         reflection = msg.get("content", "").strip()
@@ -183,9 +190,10 @@ class ReActAgent:
                 "content": f"【执行计划】\n{plan_text}\n\n请严格按照计划执行。",
             })
 
-        # ── Execute 阶段 (ReAct 循环) ──
+        # ── Execute 阶段 (ReAct 循环 + 自纠错) ──
         tool_call_count = 0
         final_content = None
+        tool_results_log = []
 
         try:
             for _round in range(max_rounds):
@@ -199,31 +207,67 @@ class ReActAgent:
                     break
 
                 messages.append(msg)
+                tool_has_error = False
+
                 for tc in tool_calls:
                     func_name = tc["function"]["name"]
-                    func_args = tc["function"]["arguments"]
+                    parsed = tc["function"].get("_parsed")
+                    func_args = parsed if parsed is not None else tc["function"]["arguments"]
+                    tc["function"].pop("_parsed", None)
                     tool_call_count += 1
 
-                    result = execute(func_name, func_args)
+                    # ── 执行工具，含自纠错 ──
+                    max_tool_retries = 2
+                    last_error = None
+                    for tool_try in range(max_tool_retries + 1):
+                        try:
+                            result = execute(func_name, func_args)
+                            if isinstance(result, (dict, list)):
+                                result_str = json.dumps(result, ensure_ascii=False, indent=2)
+                            else:
+                                result_str = str(result)
 
-                    if isinstance(result, (dict, list)):
-                        result_str = json.dumps(result, ensure_ascii=False, indent=2)
-                    else:
-                        result_str = str(result)
+                            # 检查结果是否包含错误
+                            if "[错误]" in result_str or "[超时]" in result_str:
+                                last_error = result_str
+                                if tool_try < max_tool_retries:
+                                    logger.warning(f"Agent[{self.name}] 工具{func_name}返回错误，重试中({tool_try+1}/{max_tool_retries})")
+                                    continue
+                                tool_has_error = True
+                            break
+                        except Exception as e:
+                            last_error = str(e)
+                            if tool_try < max_tool_retries:
+                                logger.warning(f"Agent[{self.name}] 工具{func_name}异常，重试中: {e}")
+                                continue
+                            result_str = f"[错误] 工具 {func_name} 执行失败: {e}"
 
+                    if last_error and tool_try < max_tool_retries:
+                        # 自纠错成功（重试后正常），记录但不影响流程
+                        pass
+
+                    tool_results_log.append(result_str[:200])
                     messages.append({
                         "role": "tool",
                         "content": result_str[:2000],
+                        "tool_call_id": tc.get("id", ""),
                     })
 
-            # ── Reflect 阶段 ──
-            reflection = ""
-            if mode == "plan_reflect" and tool_call_count > 0:
-                needs_more, reflection = self._reflect(user_input, messages)
-                if needs_more and max_rounds > tool_call_count + 2:
+                # ── 本轮有错误时，提示 Agent 修正 ──
+                if tool_has_error and _round < max_rounds - 1:
                     messages.append({
                         "role": "system",
-                        "content": f"【反思反馈】\n{reflection}\n\n请根据以上反思补充回答问题。",
+                        "content": "⚠️ 上一步工具调用返回了错误，请检查参数后重新尝试，或换一个工具继续。不要重复同样的错误调用。",
+                    })
+
+            # ── Reflect 阶段（深度反思） ──
+            reflection = ""
+            if mode == "plan_reflect" and tool_call_count > 0:
+                needs_more, reflection = self._reflect(user_input, messages, tool_results_log)
+                if needs_more and max_rounds > tool_call_count + 3:
+                    messages.append({
+                        "role": "system",
+                        "content": f"【反思反馈】\n{reflection}\n\n请根据以上反思补充或修正你的回答。如果反思认为需要重做，请重新调用工具获取正确数据。",
                     })
                     for _round2 in range(max_rounds - tool_call_count):
                         msg2 = self._call_llm(messages, tool_defs)
@@ -235,14 +279,30 @@ class ReActAgent:
                         messages.append(msg2)
                         for tc in tc2:
                             func_name = tc["function"]["name"]
-                            func_args = tc["function"]["arguments"]
+                            parsed = tc["function"].get("_parsed")
+                            func_args = parsed if parsed is not None else tc["function"]["arguments"]
+                            tc["function"].pop("_parsed", None)
                             tool_call_count += 1
-                            result = execute(func_name, func_args)
-                            if isinstance(result, (dict, list)):
-                                result_str = json.dumps(result, ensure_ascii=False, indent=2)
-                            else:
-                                result_str = str(result)
-                            messages.append({"role": "tool", "content": result_str[:2000]})
+
+                            for tool_try in range(2):
+                                try:
+                                    result = execute(func_name, func_args)
+                                    if isinstance(result, (dict, list)):
+                                        result_str = json.dumps(result, ensure_ascii=False, indent=2)
+                                    else:
+                                        result_str = str(result)
+                                    break
+                                except Exception as e:
+                                    result_str = f"[错误] {e}"
+                                    if tool_try < 1:
+                                        continue
+                                    break
+
+                            messages.append({
+                                "role": "tool",
+                                "content": result_str[:2000],
+                                "tool_call_id": tc.get("id", ""),
+                            })
 
             logger.info(f"Agent[{self.name}] 执行完成 tool_calls={tool_call_count} mode={mode}")
         except Exception as e:

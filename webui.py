@@ -39,7 +39,8 @@ def _check_rate_limit(ip: str) -> bool:
     return True
 
 
-def _ollama_check():
+def _check_llm():
+    """根据 LLM_PROVIDER 自动检查 DeepSeek 或 Ollama"""
     provider = LLM_PROVIDER
     if provider == "deepseek":
         ok, msg = check_llm()
@@ -60,7 +61,7 @@ def check_env():
 
 def agent_chat(message, history):
     """智能对话 Tab — 带限流"""
-    ok, err = _ollama_check()
+    ok, err = _check_llm()
     if not ok:
         yield err
         return
@@ -82,7 +83,7 @@ def agent_chat(message, history):
 
 
 def run_selector(category, budget, audience):
-    ok, err = _ollama_check()
+    ok, err = _check_llm()
     if not ok:
         return err, None
     if not category.strip():
@@ -106,7 +107,7 @@ def run_selector(category, budget, audience):
 
 
 def run_lister(name, category, features, price, cost):
-    ok, err = _ollama_check()
+    ok, err = _check_llm()
     if not ok:
         return err
     if not name.strip():
@@ -133,7 +134,7 @@ def run_lister(name, category, features, price, cost):
 
 
 def run_sourcing(name, category, target_price, expected_sales, budget):
-    ok, err = _ollama_check()
+    ok, err = _check_llm()
     if not ok:
         return err
     if not name.strip() and not category.strip():
@@ -159,7 +160,7 @@ def run_sourcing(name, category, target_price, expected_sales, budget):
 
 
 def run_service(query, product_context):
-    ok, err = _ollama_check()
+    ok, err = _check_llm()
     if not ok:
         return err
     if not query.strip():
@@ -175,7 +176,7 @@ def run_service(query, product_context):
 
 
 def run_analyst(data, cost, price, volume):
-    ok, err = _ollama_check()
+    ok, err = _check_llm()
     if not ok:
         return err, None
     if not data.strip():
@@ -208,7 +209,7 @@ def run_analyst(data, cost, price, volume):
 
 
 def run_workflow(category, budget, audience):
-    ok, err = _ollama_check()
+    ok, err = _check_llm()
     if not ok:
         yield err
         return
@@ -279,8 +280,9 @@ def parse_csv(file):
 
 def run_batch_listing(file):
     """批量上架"""
-    if not check_ollama():
-        yield "❌ Ollama 未运行", None
+    ok, err = _check_llm()
+    if not ok:
+        yield f"❌ {err}", None
         return
 
     products, msg = parse_csv(file)

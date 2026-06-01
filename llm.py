@@ -70,15 +70,21 @@ def _call_deepseek(
                 result["tool_calls"] = []
                 for tc in msg["tool_calls"]:
                     fn = tc["function"]
-                    # arguments 是字符串，需要解析
+                    # OpenAI 格式要求 arguments 是 JSON 字符串，保留原样
+                    args_str = fn["arguments"] if isinstance(fn["arguments"], str) else json.dumps(fn["arguments"], ensure_ascii=False)
+                    # 解析 dict 用于实际执行
                     try:
-                        args = json.loads(fn["arguments"]) if isinstance(fn["arguments"], str) else fn["arguments"]
+                        parsed_args = json.loads(args_str) if isinstance(args_str, str) else args_str
                     except json.JSONDecodeError:
-                        args = {}
+                        parsed_args = {}
+                    # id 和 type 是 OpenAI 格式必需字段（后续请求需引用 tool_call_id）
                     result["tool_calls"].append({
+                        "id": tc.get("id"),
+                        "type": "function",
                         "function": {
                             "name": fn["name"],
-                            "arguments": args,
+                            "arguments": args_str,   # JSON 字符串，保持 OpenAI 兼容
+                            "_parsed": parsed_args,   # dict，供 execute() 使用
                         }
                     })
 
@@ -118,6 +124,7 @@ def _call_ollama(
     messages: list[dict],
     model: str = None,
     temperature: float = 0.7,
+    tools: list[dict] = None,
 ) -> dict:
     """调用 Ollama，返回完整响应消息（含 tool_calls）"""
     used_model = model or OLLAMA_MODEL
@@ -128,8 +135,10 @@ def _call_ollama(
         "stream": False,
         "options": {"temperature": temperature},
     }
+    if tools:
+        payload["tools"] = tools
 
-    logger.info(f"Ollama 调用 model={used_model} temperature={temperature} msg_count={len(messages)}")
+    logger.info(f"Ollama 调用 model={used_model} temperature={temperature} msg_count={len(messages)} tools={len(tools) if tools else 0}")
 
     for attempt in range(MAX_RETRIES + 1):
         try:
@@ -168,8 +177,25 @@ def _call_ollama_text(
 
 
 # ====================================================================
-#  统一接口（自动选择 Provider）
+#  模型名前缀解析 + 统一路由
 # ====================================================================
+
+def _parse_model_spec(model_spec: str) -> tuple[str | None, str | None]:
+    """解析模型名前缀，返回 (provider, actual_model)
+
+    支持格式:
+        "deepseek:deepseek-chat"  → ("deepseek", "deepseek-chat")
+        "ollama:qwen2:7b"         → ("ollama", "qwen2:7b")
+        "deepseek-chat"           → (None, "deepseek-chat")  无前缀 → 使用全局 LLM_PROVIDER
+        None                      → (None, None)
+    """
+    if not model_spec:
+        return None, None
+    if ":" in model_spec and model_spec.split(":")[0] in ("ollama", "deepseek"):
+        provider, *rest = model_spec.split(":", 1)
+        return provider, rest[0] if rest else None
+    return None, model_spec
+
 
 def call_llm(
     messages: list[dict],
@@ -177,18 +203,26 @@ def call_llm(
     temperature: float = 0.7,
     tools: list[dict] = None,
 ) -> dict:
-    """统一 LLM 调用，根据 LLM_PROVIDER 自动选择 Ollama / DeepSeek
+    """统一 LLM 调用，根据模型名前缀自动选择 Ollama / DeepSeek
+
+    模型名格式:
+        "deepseek:deepseek-chat"  → 走 DeepSeek
+        "ollama:qwen2:7b"         → 走 Ollama
+        "qwen2:7b" / None         → 走全局 LLM_PROVIDER
 
     Returns:
         统一格式: {"role": "assistant", "content": str, "tool_calls": [...]}
         tool_calls 格式: [{"function": {"name": str, "arguments": dict}}]
     """
-    provider = LLM_PROVIDER
+    provider, actual_model = _parse_model_spec(model)
+
+    if provider is None:
+        provider = LLM_PROVIDER
+
     if provider == "deepseek":
-        return _call_deepseek(messages, model, temperature, tools)
+        return _call_deepseek(messages, actual_model, temperature, tools)
     else:
-        # Ollama 模式下把 OpenAI 格式 tools 转成 Ollama 格式
-        return _call_ollama(messages, model, temperature)
+        return _call_ollama(messages, actual_model, temperature, tools)
 
 
 def chat(messages: list[dict], **kwargs) -> str:

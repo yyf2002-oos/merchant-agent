@@ -9,7 +9,8 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from rich.console import Console
 from rich.panel import Panel
 from rich.table import Table
-from llm import check_ollama, list_models
+from config import LLM_PROVIDER
+from llm import check_llm, check_ollama, list_models
 from orchestrator import MerchantOrchestrator
 
 console = Console()
@@ -37,14 +38,19 @@ def print_agents():
 
 def run_interactive():
     print_header()
-    console.print("[yellow]正在检查 Ollama 状态...[/yellow]")
+    provider_label = LLM_PROVIDER.upper()
+    console.print(f"[yellow]正在检查 {provider_label} 状态...[/yellow]")
 
-    if not check_ollama():
-        console.print("[red]❌ Ollama 未运行！请先启动 Ollama。[/red]")
+    ok, msg = check_llm()
+    if not ok:
+        console.print(f"[red]❌ {provider_label} 不可用：{msg}[/red]")
         return
 
-    models = list_models()
-    console.print(f"[green]✅ Ollama 已连接[/green] | 可用模型: {', '.join(models[:4])}")
+    console.print(f"[green]✅ {provider_label} 已连接[/green]")
+    if LLM_PROVIDER == "ollama":
+        models = list_models()
+        console.print(f"   可用模型: {', '.join(models[:4])}")
+    console.print("[green]   混合路由：选品/运营/货源 → DeepSeek | 上架/客服 → 本地 Ollama[/green]")
 
     print_agents()
 
@@ -54,12 +60,16 @@ def run_interactive():
         console.print("2. 一键完整工作流（选品→上架→客服→分析）")
         console.print("3. 智能对话（自动路由到对应 Agent）")
         console.print("4. 货源筛选（1688供应商分析）")
+        console.print("5. 📊 商品价格库管理（录入/搜索/统计）")
         console.print("0. 退出")
         choice = console.input("\n[bold]请输入: [/bold]").strip()
 
         if choice == "0":
             console.print("[yellow]再见！[/yellow]")
             break
+
+        elif choice == "5":
+            _price_db_menu()
 
         elif choice == "1":
             print_agents()
@@ -120,6 +130,95 @@ def run_interactive():
                 console.print(f"\n[blue]🔍 1688搜索链接: {search_url}[/blue]")
 
     console.print("[green]谢谢使用！[/green]")
+
+
+def _price_db_menu():
+    """商品价格库管理"""
+    from tools.product_manager import add_product, search_products, delete_product, get_stats, list_categories
+
+    while True:
+        console.print("\n[bold cyan]=== 商品价格库管理 ===[/bold cyan]")
+        stats = get_stats()
+        console.print(f"[dim]当前库: {stats['total']} 个商品, {stats['categories']} 个品类")
+        if stats['total'] > 0:
+            console.print(f"  价格范围: ¥{stats['min_price']} ~ ¥{stats['max_price']} | 均价: ¥{stats['avg_price']}[/dim]")
+
+        console.print("1. 录入商品")
+        console.print("2. 搜索商品")
+        console.print("3. 查看统计")
+        console.print("4. 删除记录")
+        console.print("0. 返回主菜单")
+        choice = console.input("\n[bold]请输入: [/bold]").strip()
+
+        if choice == "0":
+            break
+
+        elif choice == "1":
+            name = console.input("商品名称: ")
+            try:
+                price = float(console.input("价格: "))
+            except ValueError:
+                console.print("[red]价格必须为数字[/red]")
+                continue
+            category = console.input("品类（可选）: ")
+            platform = console.input("来源平台（可选，如 1688/淘宝/拼多多）: ")
+            note = console.input("备注（可选）: ")
+            rec = add_product(name, price, category, platform, note)
+            console.print(f"[green]✅ 已录入：{rec['name']} ¥{rec['price']}[/green]")
+
+        elif choice == "2":
+            keyword = console.input("关键词（可选，直接回车跳过）: ")
+            category = console.input("品类筛选（可选）: ")
+            max_p = console.input("最高价格（可选）: ")
+            min_p = console.input("最低价格（可选）: ")
+            max_price = float(max_p) if max_p else 0
+            min_price = float(min_p) if min_p else 0
+            results = search_products(keyword, category, max_price, min_price)
+            if not results:
+                console.print("[yellow]未找到匹配记录[/yellow]")
+            else:
+                table = Table(title=f"找到 {len(results)} 个商品")
+                table.add_column("ID", style="cyan")
+                table.add_column("名称")
+                table.add_column("价格", style="green")
+                table.add_column("品类")
+                table.add_column("平台", style="blue")
+                table.add_column("备注")
+                for r in results:
+                    table.add_row(
+                        str(r.get("id", "")),
+                        r.get("name", "")[:20],
+                        f"¥{r.get('price', 0)}",
+                        r.get("category", "")[:10],
+                        r.get("platform", "")[:10],
+                        r.get("note", "")[:20],
+                    )
+                console.print(table)
+
+        elif choice == "3":
+            stats = get_stats()
+            if stats["total"] == 0:
+                console.print("[yellow]商品库为空，请先录入[/yellow]")
+            else:
+                console.print(f"[green]总商品数: {stats['total']}[/green]")
+                console.print(f"[green]品类数: {stats['categories']}[/green]")
+                console.print(f"[green]价格区间: ¥{stats['min_price']} ~ ¥{stats['max_price']}[/green]")
+                console.print(f"[green]均价: ¥{stats['avg_price']}[/green]")
+                cats = list_categories()
+                if cats:
+                    console.print(f"[dim]已有品类: {', '.join(cats)}[/dim]")
+
+        elif choice == "4":
+            try:
+                pid = int(console.input("输入要删除的商品 ID: "))
+                if delete_product(pid):
+                    console.print("[green]已删除[/green]")
+                else:
+                    console.print("[red]未找到该 ID[/red]")
+            except ValueError:
+                console.print("[red]请输入数字[/red]")
+        else:
+            console.print("[red]无效选择[/red]")
 
 
 def main():
