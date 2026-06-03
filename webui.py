@@ -6,6 +6,7 @@ import time
 import logging
 import uuid
 import json
+import hashlib
 from datetime import datetime
 
 if sys.platform == "win32":
@@ -23,11 +24,9 @@ from knowledge.data_manager import (
     get_price_library, add_price_subcategory, delete_price_subcategory,
     get_suppliers, add_supplier, delete_supplier_product,
     get_all_templates, get_all_categories,
-    add_price_category, add_supplier,
-    update_price_subcategory, update_supplier_product,
 )
 from monitor import get_stats, get_recent_calls, get_daily_stats
-from config import LOG_LEVEL, LOG_FORMAT, RATE_LIMIT_ENABLED, RATE_LIMIT_MAX, RATE_LIMIT_WINDOW, CACHE_ENABLED, LLM_PROVIDER, WEB_PORT
+from config import LOG_LEVEL, LOG_FORMAT, RATE_LIMIT_ENABLED, RATE_LIMIT_MAX, RATE_LIMIT_WINDOW, CACHE_ENABLED, LLM_PROVIDER, WEB_PORT, ADMIN_USER, ADMIN_PASS
 
 logging.basicConfig(level=getattr(logging, LOG_LEVEL), format=LOG_FORMAT)
 logger = logging.getLogger(__name__)
@@ -39,8 +38,12 @@ _rate_limit_store: dict[str, list[float]] = {}
 USERS_DB = os.path.join(os.path.dirname(__file__), "agent_memory.db")
 
 
+def _hash_password(password: str) -> str:
+    return hashlib.sha256(password.encode("utf-8")).hexdigest()
+
+
 def _init_users():
-    """初始化用户表"""
+    """Initialize users table with hashed password storage"""
     import sqlite3
     conn = sqlite3.connect(USERS_DB)
     conn.execute("""
@@ -50,13 +53,13 @@ def _init_users():
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
         )
     """)
-    # 默认管理员账号
+    # Create default admin account if not exists
     try:
         conn.execute("INSERT OR IGNORE INTO users (username, password) VALUES (?, ?)",
-                     ("admin", "admin123"))
+                     (ADMIN_USER, _hash_password(ADMIN_PASS)))
         conn.commit()
-    except Exception:
-        pass
+    except sqlite3.Error as e:
+        logger.warning(f"创建默认用户失败: {e}")
     conn.close()
 
 
@@ -64,11 +67,12 @@ _init_users()
 
 
 def check_login(username: str, password: str) -> bool:
-    """Gradio auth 回调"""
+    """Gradio auth callback with hashed password verification"""
     import sqlite3
     try:
         conn = sqlite3.connect(USERS_DB)
-        row = conn.execute("SELECT 1 FROM users WHERE username=? AND password=?", (username, password)).fetchone()
+        row = conn.execute("SELECT 1 FROM users WHERE username=? AND password=?",
+                           (username, _hash_password(password))).fetchone()
         conn.close()
         return row is not None
     except Exception:
@@ -260,24 +264,52 @@ def run_workflow(category, budget, audience, request: gr.Request):
         yield "请输入品类方向"
         return
     username = getattr(request, "username", "anonymous") or "anonymous"
-    session_id = f"wf_{username}_{uuid.uuid4().hex[:6]}"
+    session_id = f"wf_{username}_{uuid.uuid4().hex[:8]}"
 
     try:
         output = f"# 🛒 完整工作流报告：{category}\n\n"
-        yield "🚀 开始执行完整工作流...\n\n"
+        results = {"category": category, "session_id": session_id}
 
-        def on_progress(step, status, detail):
-            nonlocal output
-            if status == "running":
-                pass  # 由外部 yield 处理
+        # 步骤 1/4: 选品分析
+        yield output + "⏳ **步骤 1/4：选品分析中...**\n"
+        try:
+            sel_result = orch.run_agent("selector", category, session_id=session_id, budget=budget, target_audience=audience)
+            results["selector"] = sel_result
+            output += f"## 📋 选品分析\n{sel_result.get('report', 'N/A')}\n\n"
+        except Exception as e:
+            output += f"## 📋 选品分析\n❌ 选品失败: {e}\n\n"
+        yield output
 
-        results = orch.run_full_workflow(category, budget, audience, session_id=session_id, progress_callback=on_progress)
+        # 步骤 2/4: 上架素材
+        yield output + "⏳ **步骤 2/4：上架素材生成中...**\n"
+        try:
+            list_input = f"品类: {category}\n预算: {budget}\n目标人群: {audience}"
+            list_result = orch.run_agent("lister", list_input, session_id=session_id)
+            results["lister"] = list_result
+            output += f"## 📝 上架素材\n{list_result.get('listing_content', list_result.get('report', 'N/A'))}\n\n"
+        except Exception as e:
+            output += f"## 📝 上架素材\n❌ 上架失败: {e}\n\n"
+        yield output
 
-        for step_key, label in [("selector", "📋 选品分析"), ("lister", "📝 上架素材"), ("service", "💬 客服应答"), ("analyst", "📊 运营建议")]:
-            step = results.get(step_key, {})
-            content = step.get("report") or step.get("listing_content") or step.get("answer") or "N/A"
-            output += f"## {label}\n{content}\n\n"
-            yield output
+        # 步骤 3/4: 客服
+        yield output + "⏳ **步骤 3/4：客服话术生成中...**\n"
+        try:
+            svc_result = orch.run_agent("service", f"品类: {category} 的常见客服问题", session_id=session_id)
+            results["service"] = svc_result
+            output += f"## 💬 客服应答\n{svc_result.get('answer', svc_result.get('report', 'N/A'))}\n\n"
+        except Exception as e:
+            output += f"## 💬 客服应答\n❌ 客服生成失败: {e}\n\n"
+        yield output
+
+        # 步骤 4/4: 运营分析
+        yield output + "⏳ **步骤 4/4：运营分析中...**\n"
+        try:
+            an_result = orch.run_agent("analyst", f"新店铺启动\n品类: {category}\n预算: {budget}\n目标人群: {audience}", session_id=session_id)
+            results["analyst"] = an_result
+            output += f"## 📊 运营建议\n{an_result.get('report', 'N/A')}\n\n"
+        except Exception as e:
+            output += f"## 📊 运营建议\n❌ 分析失败: {e}\n\n"
+        yield output
 
         output += "---\n✅ **全部完成！**"
         yield output
@@ -354,7 +386,8 @@ def export_batch_csv(results):
     for r in results:
         name = r.get("name", "")
         lines = r.get("content", "").split("\n")
-        titles = [l for l in lines if "方案" in l and "：" in l]
+        # 匹配 "方案N：" 开头的标题行（如 "方案1：淘宝搜索优化版"），排除正文中随意出现的"方案"
+        titles = [l for l in lines if re.match(r'^方案\d+[：:]', l.strip())]
         t1 = titles[0].split("：")[-1].strip() if len(titles) > 0 else ""
         t2 = titles[1].split("：")[-1].strip() if len(titles) > 1 else ""
         t3 = titles[2].split("：")[-1].strip() if len(titles) > 2 else ""
@@ -661,7 +694,7 @@ def build_app():
                 # 页面加载时自动刷新
                 app.load(refresh_system_status, outputs=[status_out, recent_out])
 
-        gr.Markdown("---\n💡 首次使用请用默认账号 `admin / admin123` 登录")
+        gr.Markdown(f"---\n💡 首次使用请用默认账号 `{ADMIN_USER} / {ADMIN_PASS}` 登录")
 
     return app
 
@@ -678,7 +711,7 @@ def main():
         server_name="127.0.0.1",
         server_port=WEB_PORT,
         auth=check_login,
-        auth_message="请输入用户名和密码（默认: admin / admin123）",
+        auth_message=f"请输入用户名和密码（默认: {ADMIN_USER} / {ADMIN_PASS}）",
         share=False,
         show_error=True,
     )

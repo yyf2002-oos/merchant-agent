@@ -25,12 +25,14 @@ def suggest(q: str) -> list[dict]:
                 if isinstance(item, list) and len(item) >= 2
             ]
     except Exception as e:
-        return [{"keyword": f"[错误] {e}", "count": "0"}]
+        logger = __import__("logging").getLogger(__name__)
+        logger.error(f"Taobao suggest failed: {e}")
+        return []
 
 
 def format_suggest_report(suggestions: list[dict], category: str) -> str:
     """格式化下拉词为报告文本"""
-    if not suggestions or suggestions[0].get("keyword", "").startswith("[错误]"):
+    if not suggestions:
         return ""
 
     lines = [f"【淘宝搜索下拉词 - {category}】", "用户真实搜索需求（下拉联想）："]

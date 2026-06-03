@@ -40,7 +40,7 @@ class TestToolDecorator:
 
     def test_execute_unknown_tool(self):
         result = execute("nonexistent", {})
-        assert "Unknown tool" in result
+        assert "未知工具" in result
 
     def test_execute_error(self):
         @tool(description="broken")

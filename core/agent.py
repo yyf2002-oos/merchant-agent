@@ -1,4 +1,4 @@
-"""ReAct Agent — 支持 Plan-Execute-Reflect 循环 + 上下文管理"""
+"""ReAct Agent — Plan-Execute-Reflect loop with context management"""
 
 import json
 import logging
@@ -17,12 +17,12 @@ logger.setLevel(getattr(logging, LOG_LEVEL))
 
 
 class ReActAgent(BaseAgent):
-    """自驱型 Agent：ReAct 循环 + 原生 Function Calling + 规划反思
+    """Self-driven Agent: ReAct loop + native Function Calling + Plan & Reflect
 
-    运行模式:
-    - react:        标准 ReAct 循环（向后兼容）
-    - plan_execute: 执行前先生成计划，再按计划执行
-    - plan_reflect: 计划+执行+反思，结果不符预期可重新执行
+    Modes:
+    - react:        standard ReAct loop (backward compatible)
+    - plan_execute: generate plan first, then execute
+    - plan_reflect: plan + execute + reflect, re-execute if quality not met
     """
 
     def __init__(
@@ -43,7 +43,7 @@ class ReActAgent(BaseAgent):
         self.light_model = light_model or OLLAMA_FAST_MODEL
         self.temperature = temperature
 
-        # 自动回退：轻量模型用 Ollama 但 Ollama 不可用时，降级到主模型
+        # Fallback: if light model uses Ollama but Ollama is unavailable, fall back to main model
         if self.light_model and self.model:
             from llm import _parse_model_spec
             l_prov, _ = _parse_model_spec(self.light_model)
@@ -54,22 +54,26 @@ class ReActAgent(BaseAgent):
                     httpx.get(f"{OLLAMA_BASE}/api/tags", timeout=2)
                 except Exception:
                     self.light_model = self.model
-                    logger.warning(f"Ollama 不可用，轻量模型回退到主模型: {self.model}")
+                    logger.warning(f"Ollama unavailable, light model fallback to main: {self.model}")
         self.memory = ConversationMemory() if use_memory else None
-        logger.info(f"Agent[{name}] 初始化 tools={tools} use_memory={use_memory} model={model}")
+        logger.info(f"Agent[{name}] initialized tools={tools} use_memory={use_memory} model={model}")
 
     def _get_tool_defs(self) -> list[dict]:
         all_defs = get_all_definitions()
         if self.allowed_tools is None:
-            return []  # None 表示"不允许使用任何工具"
+            return []  # None → 不允许使用任何工具（纯文本生成）
         if not self.allowed_tools:
-            return all_defs  # 空列表表示"使用全部工具"
-        return [d for d in all_defs if d["function"]["name"] in self.allowed_tools]
+            return all_defs  # 空列表 → 使用全部工具
+        # 有具体列表 → 只使用列表中的工具
+        selected = [d for d in all_defs if d["function"]["name"] in self.allowed_tools]
+        if not selected:
+            logger.warning(f"Agent[{self.name}] allowed_tools 中无匹配工具: {self.allowed_tools}")
+        return selected
 
     def _call_llm(self, messages: list[dict], tools: list[dict] = None, model: str = None) -> dict:
-        """统一 LLM 调用（自动选择 Ollama/DeepSeek + 自动降级），返回完整响应消息"""
+        """Unified LLM call (auto Ollama/DeepSeek + fallback), returns full response message"""
         used_model = model or self.model
-        logger.debug(f"Agent[{self.name}] 调用 model={used_model} tools={len(tools) if tools else 0}")
+        logger.debug(f"Agent[{self.name}] call model={used_model} tools={len(tools) if tools else 0}")
 
         result = call_llm(
             messages, model=used_model, temperature=self.temperature,
@@ -78,11 +82,16 @@ class ReActAgent(BaseAgent):
         return result
 
     def _execute_single_tool(self, tc: dict, log_prefix: str = "") -> tuple[str, bool]:
-        """执行单个工具调用（含重试），返回 (result_str, has_error)"""
+        """Execute a single tool call (with retry), returns (result_str, has_error)"""
         func_name = tc["function"]["name"]
-        parsed = tc["function"].get("_parsed")
-        func_args = parsed if parsed is not None else tc["function"]["arguments"]
-        tc["function"].pop("_parsed", None)
+        raw_args = tc["function"]["arguments"]
+        func_args = raw_args
+        if isinstance(raw_args, str):
+            try:
+                func_args = json.loads(raw_args)
+            except json.JSONDecodeError:
+                func_args = {}
+                logger.warning(f"Agent[{self.name}] 工具 {func_name} 参数 JSON 解析失败，使用空参数: {raw_args[:100]}")
 
         max_retries = 2
         for attempt in range(max_retries + 1):
@@ -90,16 +99,16 @@ class ReActAgent(BaseAgent):
                 result = execute(func_name, func_args)
                 result_str = json.dumps(result, ensure_ascii=False, indent=2) if isinstance(result, (dict, list)) else str(result)
 
-                # 检查结果是否包含错误
+                # Check if result contains error
                 if "[错误]" in result_str or "[超时]" in result_str:
                     if attempt < max_retries:
-                        logger.warning(f"Agent[{self.name}] 工具{func_name}返回错误，重试中({attempt+1}/{max_retries})")
+                        logger.warning(f"Agent[{self.name}] tool={func_name} returned error, retrying ({attempt+1}/{max_retries})")
                         continue
                     return result_str, True
                 return result_str, False
             except Exception as e:
                 if attempt < max_retries:
-                    logger.warning(f"Agent[{self.name}] 工具{func_name}异常，重试中: {e}")
+                    logger.warning(f"Agent[{self.name}] tool={func_name} exception, retrying: {e}")
                     continue
                 return f"[错误] 工具 {func_name} 执行失败: {e}", True
 
@@ -184,7 +193,13 @@ class ReActAgent(BaseAgent):
 
         # 检查 reflection 是否表示"已完成"（鲁棒匹配）
         first_line = reflection.strip().split("\n")[0] if reflection else ""
-        needs_more = not (first_line.startswith("✅") or "✅ 完成" in reflection)
+        # 支持多种完成标记：✅ / 完成 / all passed / 5项全是"是"
+        done_keywords = ["✅", "完成", "all passed", "5项全是"]
+        needs_more = not (
+            first_line.startswith("✅")
+            or "✅ 完成" in reflection
+            or any(kw in reflection[:30] for kw in ["all passed", "全部完成", "5项全是"])
+        )
         return needs_more, reflection
 
     # ── 主入口 ────────────────────────────────────
@@ -197,31 +212,31 @@ class ReActAgent(BaseAgent):
         mode: Literal["react", "plan_execute", "plan_reflect"] = "plan_reflect",
         **kwargs,
     ) -> dict:
-        """执行 Agent 任务
+        """Execute Agent task
 
         Args:
-            input_data: 用户输入
-            session_id: 会话 ID（None 时自动生成 UUID）
-            max_rounds: 最大工具调用轮次（默认 REACT_MAX_ROUNDS）
-            mode: 运行模式
-                react: 标准 ReAct
-                plan_execute: 计划+执行
-                plan_reflect: 计划+执行+反思（默认）
+            input_data: user input
+            session_id: session ID (auto-generates UUID if None)
+            max_rounds: max tool call rounds (default REACT_MAX_ROUNDS)
+            mode:
+                react: standard ReAct
+                plan_execute: plan + execute
+                plan_reflect: plan + execute + reflect (default)
 
         Returns:
             {"agent": name, "report": content, "tool_calls": count}
         """
         if max_rounds is None:
             max_rounds = REACT_MAX_ROUNDS
-        # 自动生成 session_id，避免全局 "default" 冲突
+        # Auto-generate session_id to avoid global "default" conflicts
         if not session_id:
             session_id = f"{self.name}_{uuid.uuid4().hex[:8]}"
         self._session_id = session_id
         user_input = self._format_input(input_data)
         tool_defs = self._get_tool_defs()
-        logger.info(f"Agent[{self.name}] 开始运行 session={session_id} mode={mode} max_rounds={max_rounds} tools={len(tool_defs)}")
+        logger.info(f"Agent[{self.name}] start session={session_id} mode={mode} max_rounds={max_rounds} tools={len(tool_defs)}")
 
-        # ── 构建上下文 ──
+        # ── Build context ──
         ctx = None
         if self.memory:
             ctx = AgentContext(session_id, self.memory)
@@ -234,7 +249,7 @@ class ReActAgent(BaseAgent):
 
         messages.append({"role": "user", "content": user_input})
 
-        # ── Plan 阶段 ──
+        # ── Plan phase ──
         plan_text = ""
         if mode in ("plan_execute", "plan_reflect"):
             plan_text = self._generate_plan(user_input, tool_defs)
@@ -243,7 +258,7 @@ class ReActAgent(BaseAgent):
                 "content": f"【执行计划】\n{plan_text}\n\n请严格按照计划执行。",
             })
 
-        # ── Execute 阶段 (ReAct 循环 + 自纠错) ──
+        # ── Execute phase (ReAct loop + self-correction) ──
         tool_call_count = 0
         final_content = None
         tool_results_log = []
@@ -271,21 +286,21 @@ class ReActAgent(BaseAgent):
                         "content": result_str[:2000],
                         "tool_call_id": tc.get("id", ""),
                     })
-                    # 工具结果持久化到 context
+                    # Persist tool results to context
                     if ctx and result_str and "[错误]" not in result_str[:20]:
                         func_name = tc["function"]["name"]
                         ctx.add_tool_result(func_name, result_str[:200])
                     if has_err:
                         tool_has_error = True
 
-                # ── 本轮有错误时，提示 Agent 修正 ──
+                # ── On error, prompt Agent to correct ──
                 if tool_has_error and _round < max_rounds - 1:
                     messages.append({
                         "role": "system",
                         "content": "⚠️ 上一步工具调用返回了错误，请检查参数后重新尝试，或换一个工具继续。不要重复同样的错误调用。",
                     })
 
-            # ── Reflect 阶段（深度反思） ──
+            # ── Reflect phase ──
             reflection = ""
             if mode == "plan_reflect" and tool_call_count > 0:
                 needs_more, reflection = self._reflect(user_input, messages, tool_results_log)
@@ -312,13 +327,13 @@ class ReActAgent(BaseAgent):
                                 "tool_call_id": tc.get("id", ""),
                             })
 
-            logger.info(f"Agent[{self.name}] 执行完成 tool_calls={tool_call_count} mode={mode}")
+            logger.info(f"Agent[{self.name}] done tool_calls={tool_call_count} mode={mode}")
         except Exception as e:
-            logger.error(f"Agent[{self.name}] 执行异常: {e}", exc_info=True)
+            logger.error(f"Agent[{self.name}] execution error: {e}", exc_info=True)
             if not final_content:
-                final_content = f"[Agent 执行异常] {e}"
+                final_content = f"[Agent执行错误] {e}"
 
-        # ── 保存到记忆 ──
+        # ── Save to memory ──
         if ctx:
             ctx.add_message("user", user_input)
             if final_content:
@@ -326,7 +341,7 @@ class ReActAgent(BaseAgent):
 
         return {
             "agent": self.name,
-            "report": final_content or "（无输出）",
+            "report": final_content or "(no output)",
             "tool_calls": tool_call_count,
             "plan": plan_text if mode in ("plan_execute", "plan_reflect") else "",
             "reflection": reflection if mode == "plan_reflect" else "",

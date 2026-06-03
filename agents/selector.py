@@ -1,11 +1,15 @@
-"""选品 Agent — ReAct 自驱型：自动调用淘宝工具 + 知识库分析"""
+"""Selector Agent — ReAct-driven: auto-calls Taobao tools + knowledge base analysis"""
 
 import re
-import sys
+import logging
 from typing import Any
 
 from core.agent import ReActAgent
 from config import AGENT_MODEL, AGENT_LIGHT_MODEL
+from tools.formatter import format_product_card
+from tools.calculator import keyword_score
+
+logger = logging.getLogger(__name__)
 
 SELECTOR_SYSTEM = """你是电商选品专家。你的核心价值：用**真实数据**帮小卖家找到有利润空间的蓝海商品。
 
@@ -81,7 +85,7 @@ SELECTOR_SYSTEM = """你是电商选品专家。你的核心价值：用**真实
 
 
 class SelectorAgent(ReActAgent):
-    """选品 Agent — 自主调用淘宝工具 + 知识库"""
+    """Selector Agent — auto-calls Taobao tools + knowledge base"""
 
     def __init__(self):
         super().__init__(
@@ -103,24 +107,24 @@ class SelectorAgent(ReActAgent):
         budget = kwargs.get("budget", "")
         target_audience = kwargs.get("target_audience", "")
 
-        # 构建用户输入（传给 ReActAgent 让其自主调工具）
-        parts = [f"品类：{category}"]
+        # Build user input for ReActAgent
+        parts = [f"Category: {category}"]
         if budget:
-            parts.append(f"启动预算：{budget}元")
+            parts.append(f"Budget: {budget}")
         if target_audience:
-            parts.append(f"目标人群：{target_audience}")
-        parts.append("\n请使用工具获取真实数据，给我完整的选品分析报告。")
+            parts.append(f"Target: {target_audience}")
+        parts.append("\nPlease use tools to get real data and provide a complete analysis report.")
         user_input = "\n".join(parts)
 
-        # 执行 ReAct 循环
+        # Execute ReAct loop
         result = super().run(user_input)
         report = result.get("report", "")
 
-        # ===== 后处理：从报告中提取结构化推荐商品数据（保持向后兼容）=====
+        # Post-process: extract structured recommendation data from report
         recommendations = []
 
-        # 先尝试从报告的市场概况段提取品类级搜索量，作为各产品的默认值
-        category_search_volume = 5000  # 保守默认
+        # Extract category-level search volume from report
+        category_search_volume = 5000
         vol_report = re.search(r'搜索[热度预估量：:\s]*(\d[\d,.]*万?)', report)
         if vol_report:
             raw = vol_report.group(1).replace(",", "")
@@ -142,7 +146,6 @@ class SelectorAgent(ReActAgent):
                 cost = 0
                 competition = 50
                 search_volume = category_search_volume
-                competition = 50
 
                 price_m = re.search(r'售价[：:\s]*(\d+)', line)
                 if price_m:
@@ -162,7 +165,7 @@ class SelectorAgent(ReActAgent):
                 if comp_m:
                     comp_map = {"高": 70, "中": 40, "低": 10}
                     competition = comp_map.get(comp_m.group(1), 50)
-                    # 无品类级搜索量时，用竞争度推算默认值
+                    # Infer default volume from competition when no category volume
                     if search_volume == category_search_volume == 5000:
                         search_volume = comp_default_map.get(comp_m.group(1), 5000)
 
@@ -178,17 +181,15 @@ class SelectorAgent(ReActAgent):
                     "competition": competition,
                 })
             except Exception as e:
-                print(f"[selector] 解析第{i+1}行推荐商品失败: {e}", file=sys.stderr)
+                logger.error(f"[selector] Failed to parse recommendation at line {i+1}: {e}")
                 continue
 
-        # 生成格式化卡片
+        # Generate formatted cards
         cards = []
-        from tools.formatter import format_product_card
         for r in recommendations:
             r["margin"] = round((r["avg_price"] - r["cost"]) / r["avg_price"] * 100, 1) if r["avg_price"] > 0 else 0
-            from tools.calculator import keyword_score
             r["hot_rating"] = min(int(keyword_score(r["search_volume"], r["competition"], r["avg_price"], max(r["cost"], 1)) / 20), 5)
-            r["reason"] = f"月搜索量{r['search_volume']}，竞争度{r['competition']}"
+            r["reason"] = f"Search volume: {r['search_volume']}, Competition: {r['competition']}"
             cards.append(format_product_card(r))
 
         return {

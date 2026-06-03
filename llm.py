@@ -1,4 +1,4 @@
-"""LLM 调用封装 — 支持 Ollama + DeepSeek，流式输出、工具调用、日志"""
+"""LLM invocation layer — Ollama + DeepSeek, streaming, tool calls, logging & fallback"""
 
 import json
 import time
@@ -14,6 +14,9 @@ from config import (
 
 logger = logging.getLogger(__name__)
 logger.setLevel(getattr(logging, LOG_LEVEL))
+
+# 共享 HTTP 客户端（复用连接池，避免每次新建 TCP 连接）
+_http_client = httpx.Client(timeout=AGENT_TIMEOUT)
 
 
 # ====================================================================
@@ -45,61 +48,53 @@ def _call_deepseek(
     if tools:
         payload["tools"] = tools
 
-    logger.info(f"DeepSeek 调用 model={used_model} temperature={temperature} msg_count={len(messages)} tools={len(tools) if tools else 0}")
+    logger.info(f"DeepSeek call model={used_model} temperature={temperature} msg_count={len(messages)} tools={len(tools) if tools else 0}")
 
     for attempt in range(MAX_RETRIES + 1):
         try:
             t0 = time.time()
-            with httpx.Client(timeout=AGENT_TIMEOUT) as client:
-                resp = client.post(url, json=payload, headers=headers)
-                resp.raise_for_status()
-                data = resp.json()
+            resp = _http_client.post(url, json=payload, headers=headers)
+            resp.raise_for_status()
+            data = resp.json()
             elapsed = time.time() - t0
 
             choice = data["choices"][0]
             msg = choice["message"]
 
-            # 转换为 Ollama 兼容格式
+            # Convert to Ollama-compatible format
             result = {
                 "role": "assistant",
                 "content": msg.get("content") or "",
             }
 
-            # DeepSeek 的工具调用是 OpenAI 格式
+            # DeepSeek tool calls use OpenAI format
             if msg.get("tool_calls"):
                 result["tool_calls"] = []
                 for tc in msg["tool_calls"]:
                     fn = tc["function"]
-                    # OpenAI 格式要求 arguments 是 JSON 字符串，保留原样
+                    # OpenAI format requires arguments as JSON string
                     args_str = fn["arguments"] if isinstance(fn["arguments"], str) else json.dumps(fn["arguments"], ensure_ascii=False)
-                    # 解析 dict 用于实际执行
-                    try:
-                        parsed_args = json.loads(args_str) if isinstance(args_str, str) else args_str
-                    except json.JSONDecodeError:
-                        parsed_args = {}
-                    # id 和 type 是 OpenAI 格式必需字段（后续请求需引用 tool_call_id）
                     result["tool_calls"].append({
                         "id": tc.get("id"),
                         "type": "function",
                         "function": {
                             "name": fn["name"],
-                            "arguments": args_str,   # JSON 字符串，保持 OpenAI 兼容
-                            "_parsed": parsed_args,   # dict，供 execute() 使用
+                            "arguments": args_str,
                         }
                     })
 
-            logger.info(f"DeepSeek 返回 attempt={attempt+1} 耗时={elapsed:.1f}s"
+            logger.info(f"DeepSeek response attempt={attempt+1} elapsed={elapsed:.1f}s"
                         f" tool_calls={bool(result.get('tool_calls'))} len={len(result.get('content',''))}")
             return result
 
         except httpx.TimeoutException:
-            logger.warning(f"DeepSeek 超时 attempt={attempt+1}/{MAX_RETRIES+1}")
+            logger.warning(f"DeepSeek timeout attempt={attempt+1}/{MAX_RETRIES+1}")
             if attempt < MAX_RETRIES:
                 time.sleep(1)
                 continue
             return {"role": "assistant", "content": f"[超时] DeepSeek 调用超时（{AGENT_TIMEOUT}s）"}
         except Exception as e:
-            logger.error(f"DeepSeek 错误 attempt={attempt+1}/{MAX_RETRIES+1}: {e}")
+            logger.error(f"DeepSeek error attempt={attempt+1}/{MAX_RETRIES+1}: {e}")
             if attempt < MAX_RETRIES:
                 time.sleep(1)
                 continue
@@ -111,7 +106,7 @@ def _call_deepseek_text(
     model: str = None,
     temperature: float = 0.7,
 ) -> Optional[str]:
-    """调用 DeepSeek 返回文本"""
+    """Call DeepSeek and return text content"""
     result = _call_deepseek(messages, model, temperature)
     return result.get("content")
 
@@ -138,28 +133,27 @@ def _call_ollama(
     if tools:
         payload["tools"] = tools
 
-    logger.info(f"Ollama 调用 model={used_model} temperature={temperature} msg_count={len(messages)} tools={len(tools) if tools else 0}")
+    logger.info(f"Ollama call model={used_model} temperature={temperature} msg_count={len(messages)} tools={len(tools) if tools else 0}")
 
     for attempt in range(MAX_RETRIES + 1):
         try:
             t0 = time.time()
-            with httpx.Client(timeout=AGENT_TIMEOUT) as client:
-                resp = client.post(url, json=payload)
-                resp.raise_for_status()
-                data = resp.json()
+            resp = _http_client.post(url, json=payload)
+            resp.raise_for_status()
+            data = resp.json()
             elapsed = time.time() - t0
             result = data["message"]
-            logger.info(f"Ollama 返回 attempt={attempt+1} 耗时={elapsed:.1f}s"
+            logger.info(f"Ollama response attempt={attempt+1} elapsed={elapsed:.1f}s"
                         f" tool_calls={bool(result.get('tool_calls'))} len={len(result.get('content',''))}")
             return result
         except httpx.TimeoutException:
-            logger.warning(f"Ollama 超时 attempt={attempt+1}/{MAX_RETRIES+1}")
+            logger.warning(f"Ollama timeout attempt={attempt+1}/{MAX_RETRIES+1}")
             if attempt < MAX_RETRIES:
                 time.sleep(1)
                 continue
             return {"role": "assistant", "content": f"[超时] Ollama 调用超时（{AGENT_TIMEOUT}s）"}
         except Exception as e:
-            logger.error(f"Ollama 错误 attempt={attempt+1}/{MAX_RETRIES+1}: {e}")
+            logger.error(f"Ollama error attempt={attempt+1}/{MAX_RETRIES+1}: {e}")
             if attempt < MAX_RETRIES:
                 time.sleep(1)
                 continue
@@ -171,7 +165,7 @@ def _call_ollama_text(
     model: str = None,
     temperature: float = 0.7,
 ) -> Optional[str]:
-    """调用 Ollama 返回文本"""
+    """Call Ollama and return text content"""
     result = _call_ollama(messages, model, temperature)
     return result.get("content")
 
@@ -181,12 +175,12 @@ def _call_ollama_text(
 # ====================================================================
 
 def _parse_model_spec(model_spec: str) -> tuple[str | None, str | None]:
-    """解析模型名前缀，返回 (provider, actual_model)
+    """Parse model name prefix, returns (provider, actual_model)
 
-    支持格式:
+    Supported formats:
         "deepseek:deepseek-chat"  → ("deepseek", "deepseek-chat")
         "ollama:qwen2:7b"         → ("ollama", "qwen2:7b")
-        "deepseek-chat"           → (None, "deepseek-chat")  无前缀 → 使用全局 LLM_PROVIDER
+        "deepseek-chat"           → (None, "deepseek-chat")  no prefix → use global LLM_PROVIDER
         None                      → (None, None)
     """
     if not model_spec:
@@ -205,18 +199,18 @@ def call_llm(
     agent: str = "",
     session_id: str = "",
 ) -> dict:
-    """统一 LLM 调用，根据模型名前缀自动选择 Ollama / DeepSeek
+    """Unified LLM call, auto-selects Ollama/DeepSeek based on model name prefix
 
-    支持自动降级：主 provider 失败时切换到备用 provider。
+    Supports auto-fallback: switches to backup provider when primary fails.
 
-    模型名格式:
-        "deepseek:deepseek-chat"  → 走 DeepSeek
-        "ollama:qwen2:7b"         → 走 Ollama
-        "qwen2:7b" / None         → 走全局 LLM_PROVIDER
+    Model name format:
+        "deepseek:deepseek-chat"  → DeepSeek
+        "ollama:qwen2:7b"         → Ollama
+        "qwen2:7b" / None         → global LLM_PROVIDER
 
     Returns:
-        统一格式: {"role": "assistant", "content": str, "tool_calls": [...]}
-        tool_calls 格式: [{"function": {"name": str, "arguments": dict}}]
+        Unified format: {"role": "assistant", "content": str, "tool_calls": [...]}
+        tool_calls format: [{"function": {"name": str, "arguments": dict}}]
     """
     return call_llm_with_fallback(
         messages, model=model, temperature=temperature,
@@ -225,13 +219,13 @@ def call_llm(
 
 
 def chat(messages: list[dict], **kwargs) -> str:
-    """普通对话"""
+    """Simple chat"""
     result = call_llm(messages, **kwargs)
     return result.get("content", "")
 
 
 def simple_prompt(system: str, user: str, **kwargs) -> str:
-    """一行调用的快捷方式"""
+    """One-line convenience for system+user prompt"""
     return chat([
         {"role": "system", "content": system},
         {"role": "user", "content": user},
@@ -248,7 +242,7 @@ def _call_deepseek_stream(
     temperature: float = 0.7,
     tools: list[dict] = None,
 ):
-    """流式调用 DeepSeek API（生成器），逐块返回 content"""
+    """Streaming DeepSeek API call (generator), yields content chunks"""
     if not DEEPSEEK_API_KEY:
         yield "[错误] DEEPSEEK_API_KEY 未配置"
         return
@@ -273,22 +267,21 @@ def _call_deepseek_stream(
         return
 
     try:
-        with httpx.Client(timeout=AGENT_TIMEOUT) as client:
-            with client.stream("POST", url, json=payload, headers=headers) as resp:
-                for line in resp.iter_lines():
-                    if not line:
+        with _http_client.stream("POST", url, json=payload, headers=headers) as resp:
+            for line in resp.iter_lines():
+                if not line:
+                    continue
+                if line.startswith("data: "):
+                    data_str = line[6:].strip()
+                    if data_str == "[DONE]":
+                        break
+                    try:
+                        chunk = json.loads(data_str)
+                        delta = chunk.get("choices", [{}])[0].get("delta", {})
+                        if content := delta.get("content"):
+                            yield content
+                    except json.JSONDecodeError:
                         continue
-                    if line.startswith("data: "):
-                        data_str = line[6:].strip()
-                        if data_str == "[DONE]":
-                            break
-                        try:
-                            chunk = json.loads(data_str)
-                            delta = chunk.get("choices", [{}])[0].get("delta", {})
-                            if content := delta.get("content"):
-                                yield content
-                        except json.JSONDecodeError:
-                            continue
     except Exception as e:
         yield f"[流式错误] {e}"
 
@@ -305,18 +298,18 @@ def call_llm_with_fallback(
     agent: str = "",
     session_id: str = "",
 ) -> dict:
-    """调用 LLM，主 provider 失败时自动降级到另一个
+    """Call LLM with auto-fallback when primary provider fails
 
-    降级策略：
-    - deepseek 超时/报错 → 自动重试 ollama
-    - ollama 超时/报错 → 自动重试 deepseek
-    - 两边都失败 → 返回错误信息
+    Fallback strategy:
+    - deepseek timeout/error → auto retry ollama
+    - ollama timeout/error → auto retry deepseek
+    - both fail → return error message
     """
     provider, actual_model = _parse_model_spec(model)
     if provider is None:
         provider = LLM_PROVIDER
 
-    # 确定主备顺序
+    # Determine primary/fallback order
     if provider == "deepseek":
         primary_provider = "deepseek"
         fallback_provider = "ollama"
@@ -330,7 +323,7 @@ def call_llm_with_fallback(
 
     t0 = time.time()
 
-    # 尝试主 provider
+    # Try primary provider
     for attempt in range(MAX_RETRIES + 1):
         try:
             if primary_provider == "deepseek":
@@ -360,12 +353,12 @@ def call_llm_with_fallback(
             if not is_error:
                 return result
 
-            logger.warning(f"{primary_provider} attempt={attempt+1} 失败，准备降级: {content[:60]}")
-            break  # 主 provider 明确失败，不再重试
+            logger.warning(f"{primary_provider} attempt={attempt+1} failed, preparing fallback: {content[:60]}")
+            break  # Primary provider explicitly failed, stop retrying
 
         except Exception as e:
             elapsed = int((time.time() - t0) * 1000)
-            logger.warning(f"{primary_provider} 异常 attempt={attempt+1}: {e}")
+            logger.warning(f"{primary_provider} exception attempt={attempt+1}: {e}")
             if attempt < MAX_RETRIES:
                 time.sleep(1)
                 continue
@@ -375,8 +368,8 @@ def call_llm_with_fallback(
             except Exception:
                 pass
 
-    # 降级到备用 provider
-    logger.info(f"降级到 {fallback_provider}")
+    # Fallback to backup provider
+    logger.info(f"Falling back to {fallback_provider}")
     t1 = time.time()
     try:
         if fallback_provider == "deepseek":
@@ -398,7 +391,7 @@ def call_llm_with_fallback(
             return result
         return {"role": "assistant", "content": f"[错误] 主({primary_provider})和备用({fallback_provider})均失败，请检查配置"}
     except Exception as e:
-        logger.error(f"降级到 {fallback_provider} 也失败: {e}")
+        logger.error(f"Fallback to {fallback_provider} also failed: {e}")
         return {"role": "assistant", "content": f"[错误] 主({primary_provider})和备用({fallback_provider})均异常: {e}"}
 
 
@@ -407,52 +400,49 @@ def call_llm_with_fallback(
 # ====================================================================
 
 def check_llm() -> tuple[bool, str]:
-    """检查当前 LLM 提供者是否可用"""
+    """Check if the current LLM provider is available"""
     provider = LLM_PROVIDER
     if provider == "deepseek":
         if not DEEPSEEK_API_KEY:
-            return False, "DEEPSEEK_API_KEY 未配置"
-        # 简单测试：发一个空请求
+            return False, "DEEPSEEK_API_KEY not configured"
+        # Simple test: list models
         try:
-            with httpx.Client(timeout=10) as client:
-                resp = client.get(f"{DEEPSEEK_API_BASE}/v1/models", headers={
-                    "Authorization": f"Bearer {DEEPSEEK_API_KEY}",
-                })
-                if resp.status_code == 200:
-                    models = resp.json().get("data", [])
-                    model_names = [m["id"] for m in models[:3]]
-                    return True, f"DeepSeek 已连接 | 可用模型: {', '.join(model_names)}"
-                return False, f"DeepSeek API 返回 {resp.status_code}"
+            resp = _http_client.get(f"{DEEPSEEK_API_BASE}/v1/models", headers={
+                "Authorization": f"Bearer {DEEPSEEK_API_KEY}",
+            })
+            if resp.status_code == 200:
+                models = resp.json().get("data", [])
+                model_names = [m["id"] for m in models[:3]]
+                return True, f"DeepSeek connected | models: {', '.join(model_names)}"
+            return False, f"DeepSeek API returned {resp.status_code}"
         except Exception as e:
-            return False, f"DeepSeek 连接失败: {e}"
+            return False, f"DeepSeek connection failed: {e}"
     else:
-        # Ollama 检查
+        # Ollama check
         try:
-            with httpx.Client(timeout=5) as client:
-                resp = client.get(f"{OLLAMA_BASE}/api/tags")
-                if resp.status_code == 200:
-                    models = resp.json().get("models", [])
-                    model_names = [m["name"] for m in models[:4]]
-                    return True, f"Ollama 已连接 | 模型: {', '.join(model_names)}"
-                return False, "Ollama 未响应"
+            resp = _http_client.get(f"{OLLAMA_BASE}/api/tags")
+            if resp.status_code == 200:
+                models = resp.json().get("models", [])
+                model_names = [m["name"] for m in models[:4]]
+                return True, f"Ollama connected | models: {', '.join(model_names)}"
+            return False, "Ollama not responding"
         except Exception as e:
-            return False, f"Ollama 连接失败: {e}"
+            return False, f"Ollama connection failed: {e}"
 
 
 def check_ollama() -> bool:
-    """兼容旧接口"""
+    """Backward-compatible alias for check_llm"""
     ok, _ = check_llm()
     return ok
 
 
 def list_models() -> list[str]:
-    """兼容旧接口 — 只返回 Ollama 模型"""
+    """List available Ollama models"""
     try:
-        with httpx.Client(timeout=5) as client:
-            resp = client.get(f"{OLLAMA_BASE}/api/tags")
-            if resp.status_code == 200:
-                data = resp.json()
-                return [m["name"] for m in data.get("models", [])]
+        resp = _http_client.get(f"{OLLAMA_BASE}/api/tags")
+        if resp.status_code == 200:
+            data = resp.json()
+            return [m["name"] for m in data.get("models", [])]
     except Exception:
         pass
     return []
@@ -463,7 +453,7 @@ def list_models() -> list[str]:
 # ====================================================================
 
 def stream_chat(messages: list[dict], model: str = None):
-    """流式对话 — 生成器（支持 DeepSeek 和 Ollama）"""
+    """Streaming chat — generator (supports DeepSeek and Ollama)"""
     provider, actual_model = _parse_model_spec(model)
     if provider is None:
         provider = LLM_PROVIDER
@@ -481,15 +471,14 @@ def stream_chat(messages: list[dict], model: str = None):
         "options": {"temperature": 0.7},
     }
     try:
-        with httpx.Client(timeout=AGENT_TIMEOUT) as client:
-            with client.stream("POST", url, json=payload) as resp:
-                for line in resp.iter_lines():
-                    if line:
-                        try:
-                            chunk = json.loads(line)
-                            if content := chunk.get("message", {}).get("content"):
-                                yield content
-                        except json.JSONDecodeError:
-                            continue
+        with _http_client.stream("POST", url, json=payload) as resp:
+            for line in resp.iter_lines():
+                if line:
+                    try:
+                        chunk = json.loads(line)
+                        if content := chunk.get("message", {}).get("content"):
+                            yield content
+                    except json.JSONDecodeError:
+                        continue
     except Exception as e:
         yield f"[流式错误] {e}"

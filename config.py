@@ -8,9 +8,18 @@ if os.path.exists(_env_path):
     with open(_env_path, encoding="utf-8") as _f:
         for _line in _f:
             _line = _line.strip()
-            if _line and not _line.startswith("#") and "=" in _line:
-                _k, _v = _line.split("=", 1)
-                os.environ.setdefault(_k.strip(), _v.strip())
+            if not _line or _line.startswith("#") or "=" not in _line:
+                continue
+            _k, _v = _line.split("=", 1)
+            _k = _k.strip()
+            _v = _v.strip().strip("\"'")  # 去除两端的引号
+            # 只取第一个未被引号包裹的 # 之前的部分（行内注释）
+            # 但需要判断 # 是否在引号内——简单处理：值中不含引号时才截断
+            if _v and not _v.startswith(("'", '"')):
+                _hash_pos = _v.find(" #")
+                if _hash_pos > 0:
+                    _v = _v[:_hash_pos].strip()
+            os.environ.setdefault(_k, _v)
 
 # ── LLM 提供者选择 ──
 # "ollama" 或 "deepseek"
@@ -29,7 +38,7 @@ DEEPSEEK_MODEL = os.environ.get("DEEPSEEK_MODEL", "deepseek-chat")
 # Agent 配置
 AGENT_TIMEOUT = int(os.environ.get("AGENT_TIMEOUT", "300"))   # LLM 调用超时（秒）
 MAX_RETRIES = int(os.environ.get("MAX_RETRIES", "2"))          # LLM 调用重试次数
-REACT_MAX_ROUNDS = 8   # ReAct 循环最大工具调用轮次
+REACT_MAX_ROUNDS = int(os.environ.get("REACT_MAX_ROUNDS", "8"))
 
 # ── 混合模型路由 ──
 # 模型名格式: "provider:model_name"
@@ -71,3 +80,7 @@ LOG_FORMAT = "%(asctime)s [%(name)s] %(levelname)s: %(message)s"
 # Web 配置
 WEB_PORT = int(os.environ.get("WEB_PORT", "7860"))
 WEB_HOST = os.environ.get("WEB_HOST", "127.0.0.1")
+
+# 默认管理员凭据（首次启动时创建）
+ADMIN_USER = os.environ.get("ADMIN_USER", "admin")
+ADMIN_PASS = os.environ.get("ADMIN_PASS", "admin123")

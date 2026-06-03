@@ -23,7 +23,8 @@ def profit_analysis(cost: float, price: float, volume: int,
 def price_suggestion(cost: float, target_margin: float = 30.0,
                     platform_fee_rate: float = 0.05) -> dict:
     """根据目标利润率建议售价"""
-    min_price = cost / (1 - platform_fee_rate - target_margin / 100)
+    denominator = 1 - platform_fee_rate - target_margin / 100
+    min_price = cost / denominator if denominator > 0 else cost * 10  # 防除零，用 10 倍成本作为保本价
     competitive_price = cost * 2.5  # 一般电商 2.5 倍定价
     premium_price = cost * 4.0
     return {

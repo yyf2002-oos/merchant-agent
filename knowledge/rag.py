@@ -91,14 +91,22 @@ class SemanticRAG:
     # ── 数据加载 ────────────────────────────────
 
     def _load(self, filename: str) -> list[dict]:
-        if filename not in self._cache:
-            path = os.path.join(self.data_dir, filename)
-            if os.path.exists(path):
-                with open(path, "r", encoding="utf-8") as f:
-                    self._cache[filename] = json.load(f)
-            else:
-                self._cache[filename] = []
-        return self._cache[filename]
+        path = os.path.join(self.data_dir, filename)
+        mtime = os.path.getmtime(path) if os.path.exists(path) else 0
+        # 检查文件是否已修改（WebUI 可能通过 data_manager.py 直接写 JSON）
+        cache_entry = self._cache.get(filename)
+        if cache_entry is not None:
+            cached_data, cached_mtime = cache_entry
+            if mtime == cached_mtime:
+                return cached_data
+        # 重新加载
+        if os.path.exists(path):
+            with open(path, "r", encoding="utf-8") as f:
+                data = json.load(f)
+        else:
+            data = []
+        self._cache[filename] = (data, mtime)
+        return data
 
     # ── 语义搜索 ────────────────────────────────
 

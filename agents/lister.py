@@ -1,4 +1,4 @@
-"""上架 Agent — 商品标题/描述/SEO 生成 + 自动保存"""
+"""Lister Agent — product title/description/SEO generation + auto-save"""
 
 import os
 import re
@@ -79,7 +79,7 @@ LISTING_SYSTEM = """你是专业电商上架运营专家，专注淘宝/拼多�
 
 
 class ListerAgent(ReActAgent):
-    """上架 Agent — 商品素材生成"""
+    """Lister Agent — 商品上架素材生成"""
 
     def __init__(self):
         super().__init__(
@@ -133,13 +133,13 @@ class ListerAgent(ReActAgent):
         }
 
     def batch_run(self, products: list[dict]) -> list[dict]:
-        """批量上架 — 依次为每个商品生成上架素材"""
+        """Batch listing — generate listing content for each product"""
         results = []
         for i, product in enumerate(products):
             result = self.run(product)
             results.append({
                 "index": i + 1,
-                "name": product.get("name", f"商品{i+1}"),
+                "name": product.get("name", f"product{i+1}"),
                 "content": result["listing_content"],
             })
         return results
@@ -149,7 +149,7 @@ class ListerAgent(ReActAgent):
         category = ""
         if isinstance(input_data, dict):
             category = input_data.get("category", "")
-        elif isinstance(input_data, str) and "品类" in input_data:
+        elif isinstance(input_data, str):
             match = re.search(r"品类[：:]\s*(\S+)", input_data)
             if match:
                 category = match.group(1)

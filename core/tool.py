@@ -3,6 +3,7 @@
 import inspect
 import logging
 import re
+import time
 from typing import Any, Callable
 
 from config import LOG_LEVEL
@@ -91,17 +92,17 @@ def execute(name: str, arguments: dict) -> Any:
     """Execute a tool by name with arguments"""
     entry = _registry.get(name)
     if not entry:
-        logger.error(f"未知工具: {name}")
-        return f"[Tool Error] Unknown tool: {name}"
-    logger.info(f"执行工具: {name} args={arguments}")
+        logger.error(f"Unknown tool: {name}")
+        return f"[工具错误] 未知工具: {name}"
+    logger.info(f"Execute tool: {name} args={arguments}")
     try:
-        t0 = __import__('time').time()
+        t0 = time.time()
         result = entry["function"](**arguments)
-        elapsed = __import__('time').time() - t0
-        logger.info(f"工具完成: {name} 耗时={elapsed:.2f}s")
+        elapsed = time.time() - t0
+        logger.info(f"Tool done: {name} elapsed={elapsed:.2f}s")
         return result
     except Exception as e:
-        logger.error(f"工具错误: {name}({arguments}): {e}")
+        logger.error(f"Tool error: {name}({arguments}): {e}")
         return f"[Tool Error] {name}({arguments}): {e}"
 
 

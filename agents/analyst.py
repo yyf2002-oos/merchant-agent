@@ -1,4 +1,4 @@
-"""运营分析 Agent — ReAct 自驱型：自动调用计算工具做数据分析"""
+"""Analyst Agent — 自动调用计算工具进行数据分析"""
 
 import re
 from typing import Any
@@ -79,7 +79,7 @@ ANALYST_SYSTEM = """你是一个接地气的电商运营数据分析师。你的
 
 
 class AnalystAgent(ReActAgent):
-    """运营分析 Agent — 自主调用计算工具"""
+    """Analyst Agent — auto-calls calculation tools for operations analysis"""
 
     def __init__(self):
         super().__init__(
@@ -103,7 +103,7 @@ class AnalystAgent(ReActAgent):
         else:
             data = str(input_data)
 
-        # 如果有结构化数据（成本/售价/销量），追加到用户输入
+        # Append structured data (cost/price/volume) to user input
         extra = ""
         if isinstance(input_data, dict):
             cost = input_data.get("cost")
@@ -116,7 +116,7 @@ class AnalystAgent(ReActAgent):
         result = super().run(user_input)
         report = result.get("report", "")
 
-        # 后处理：提取/计算定价建议（保持向后兼容）
+        # Post-process: extract pricing advice (backward compatible)
         pricing_advice = None
         if isinstance(input_data, dict):
             cost = input_data.get("cost")

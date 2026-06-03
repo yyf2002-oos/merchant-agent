@@ -1,4 +1,4 @@
-"""调用监控 — 追踪 LLM 调用耗时、Token 消耗、费用"""
+"""LLM call monitor — tracks call duration, token usage, and cost"""
 
 import time
 import json
@@ -11,45 +11,43 @@ from typing import Optional
 logger = logging.getLogger(__name__)
 
 MONITOR_DB = os.path.join(os.path.dirname(__file__), "monitor.db")
+_db_initialized = False
 
 
 def _get_conn():
+    global _db_initialized
     conn = sqlite3.connect(MONITOR_DB)
     conn.row_factory = sqlite3.Row
+    if not _db_initialized:
+        conn.executescript("""
+            CREATE TABLE IF NOT EXISTS llm_calls (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                provider TEXT NOT NULL,
+                model TEXT NOT NULL,
+                agent TEXT DEFAULT '',
+                session_id TEXT DEFAULT '',
+                prompt_tokens INTEGER DEFAULT 0,
+                completion_tokens INTEGER DEFAULT 0,
+                total_tokens INTEGER DEFAULT 0,
+                cost REAL DEFAULT 0,
+                duration_ms INTEGER DEFAULT 0,
+                success INTEGER DEFAULT 1,
+                error TEXT DEFAULT '',
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            );
+            CREATE INDEX IF NOT EXISTS idx_calls_created ON llm_calls(created_at);
+            CREATE INDEX IF NOT EXISTS idx_calls_provider ON llm_calls(provider);
+        """)
+        conn.commit()
+        _db_initialized = True
     return conn
-
-
-def _init_db():
-    conn = _get_conn()
-    conn.executescript("""
-        CREATE TABLE IF NOT EXISTS llm_calls (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            provider TEXT NOT NULL,
-            model TEXT NOT NULL,
-            agent TEXT DEFAULT '',
-            session_id TEXT DEFAULT '',
-            prompt_tokens INTEGER DEFAULT 0,
-            completion_tokens INTEGER DEFAULT 0,
-            total_tokens INTEGER DEFAULT 0,
-            cost REAL DEFAULT 0,
-            duration_ms INTEGER DEFAULT 0,
-            success INTEGER DEFAULT 1,
-            error TEXT DEFAULT '',
-            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-        );
-        CREATE INDEX IF NOT EXISTS idx_calls_created ON llm_calls(created_at);
-        CREATE INDEX IF NOT EXISTS idx_calls_provider ON llm_calls(provider);
-    """)
-    conn.commit()
-    conn.close()
-
-
-_init_db()
 
 # DeepSeek 价格（每百万 token，人民币估算）
 DEEPSEEK_PRICES = {
     "deepseek-chat": {"input": 1.0, "output": 2.0},
     "deepseek-reasoner": {"input": 4.0, "output": 16.0},
+    "deepseek-v4-flash": {"input": 0.3, "output": 0.6},
+    "deepseek-v4-pro": {"input": 2.0, "output": 8.0},
 }
 
 
