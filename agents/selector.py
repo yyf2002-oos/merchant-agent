@@ -118,6 +118,19 @@ class SelectorAgent(ReActAgent):
 
         # ===== 后处理：从报告中提取结构化推荐商品数据（保持向后兼容）=====
         recommendations = []
+
+        # 先尝试从报告的市场概况段提取品类级搜索量，作为各产品的默认值
+        category_search_volume = 5000  # 保守默认
+        vol_report = re.search(r'搜索[热度预估量：:\s]*(\d[\d,.]*万?)', report)
+        if vol_report:
+            raw = vol_report.group(1).replace(",", "")
+            if "万" in raw:
+                category_search_volume = int(float(raw.replace("万", "")) * 10000)
+            else:
+                category_search_volume = int(float(raw))
+
+        comp_default_map = {"高": 8000, "中": 3000, "低": 1000}
+
         lines = report.split("\n")
         for i, line in enumerate(lines):
             name_match = re.search(r'\*\*(.+?)\*\*', line)
@@ -128,7 +141,8 @@ class SelectorAgent(ReActAgent):
                 price = 0
                 cost = 0
                 competition = 50
-                search_volume = 5000
+                search_volume = category_search_volume
+                competition = 50
 
                 price_m = re.search(r'售价[：:\s]*(\d+)', line)
                 if price_m:
@@ -148,6 +162,9 @@ class SelectorAgent(ReActAgent):
                 if comp_m:
                     comp_map = {"高": 70, "中": 40, "低": 10}
                     competition = comp_map.get(comp_m.group(1), 50)
+                    # 无品类级搜索量时，用竞争度推算默认值
+                    if search_volume == category_search_volume == 5000:
+                        search_volume = comp_default_map.get(comp_m.group(1), 5000)
 
                 vol_m = re.search(r'搜索[量：:\s]*(\d+)', line)
                 if vol_m:

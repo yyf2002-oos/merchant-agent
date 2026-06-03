@@ -1,7 +1,13 @@
-"""商家智能 Agent — CLI 入口"""
+"""商家智能 Agent — CLI 入口（带会话上下文管理）"""
 
 import sys
 import os
+import uuid
+from datetime import datetime
+
+# Windows GBK 终端兼容：设置 UTF-8 编码
+if sys.platform == "win32":
+    sys.stdout.reconfigure(encoding="utf-8")  # type: ignore
 
 # 确保项目在 path 中
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
@@ -16,12 +22,16 @@ from orchestrator import MerchantOrchestrator
 console = Console()
 orch = MerchantOrchestrator()
 
+# 全局 Session ID（CLI 启动时生成一次，整个 CLI 会话共享）
+CLI_SESSION_ID = f"cli_{datetime.now():%Y%m%d_%H%M%S}_{uuid.uuid4().hex[:6]}"
+
 
 def print_header():
     console.clear()
     console.print(Panel.fit(
         "[bold cyan]🛒 商家智能运营 Agent[/bold cyan]\n"
-        "[yellow]AI 驱动的选品 → 上架 → 客服 → 运营 全流程[/yellow]",
+        "[yellow]AI 驱动的选品 → 上架 → 客服 → 运营 全流程[/yellow]\n"
+        f"[dim]会话: {CLI_SESSION_ID[:16]}... | 所有对话带上下文记忆[/dim]",
         border_style="cyan",
     ))
 
@@ -58,7 +68,7 @@ def run_interactive():
         console.print("\n[bold cyan]选择模式:[/bold cyan]")
         console.print("1. 单独 Agent 任务")
         console.print("2. 一键完整工作流（选品→上架→客服→分析）")
-        console.print("3. 智能对话（自动路由到对应 Agent）")
+        console.print("3. 智能对话（自动路由 + 多轮上下文记忆）")
         console.print("4. 货源筛选（1688供应商分析）")
         console.print("5. 📊 商品价格库管理（录入/搜索/统计）")
         console.print("0. 退出")
@@ -80,9 +90,9 @@ def run_interactive():
                     agent_key = agents[idx]["key"]
                     prompt = console.input("请输入任务描述: ")
                     console.print("[yellow]正在处理，请稍候...[/yellow]")
-                    result = orch.run_agent(agent_key, prompt)
+                    result = orch.run_agent(agent_key, prompt, session_id=CLI_SESSION_ID)
                     for k, v in result.items():
-                        if k != "agent":
+                        if k not in ("agent", "session_id"):
                             console.print(Panel(str(v)[:2000], title=k))
                 else:
                     console.print("[red]无效编号[/red]")
@@ -96,21 +106,29 @@ def run_interactive():
             audience = console.input("目标人群（可选）: ")
             console.print("[yellow]正在执行完整工作流，这可能需要几分钟...[/yellow]")
 
-            results = orch.run_full_workflow(category, budget, audience)
+            results = orch.run_full_workflow(category, budget, audience, session_id=CLI_SESSION_ID)
 
             for step_key in ["selector", "lister", "service", "analyst"]:
                 step = results.get(step_key, {})
                 agent_name = step.get("agent", step_key)
                 console.print(f"\n[bold green]=== {agent_name} ===[/bold green]")
                 for k, v in step.items():
-                    if k not in ("agent",) and v:
+                    if k not in ("agent", "session_id") and v:
                         console.print(Panel(str(v)[:1500], title=k))
 
         elif choice == "3":
-            query = console.input("请输入你的问题: ")
-            console.print("[yellow]正在思考...[/yellow]")
-            response = orch.smart_chat(query)
-            console.print(Panel(response, title="回复"))
+            console.print("[dim]（按 Ctrl+C 返回主菜单）[/dim]")
+            while True:
+                try:
+                    query = console.input("\n[bold cyan]你: [/bold cyan]")
+                    if not query.strip():
+                        continue
+                    console.print("[yellow]正在思考...[/yellow]")
+                    response = orch.smart_chat(query, session_id=CLI_SESSION_ID)
+                    console.print(Panel(response, title="回复"))
+                except KeyboardInterrupt:
+                    console.print("\n[yellow]返回主菜单[/yellow]")
+                    break
 
         elif choice == "4":
             console.print("\n[bold]=== 货源筛选（1688供应商分析）=== [/bold]")
@@ -123,7 +141,7 @@ def run_interactive():
 
             info = {"name": name, "category": category, "target_price": target_price,
                     "expected_sales": expected_sales, "budget": budget}
-            result = orch.run_agent("sourcing", info)
+            result = orch.run_agent("sourcing", info, session_id=CLI_SESSION_ID)
             console.print(Panel(result.get("report", "生成失败")[:3000], title="货源分析"))
             search_url = result.get("search_url", "")
             if search_url:

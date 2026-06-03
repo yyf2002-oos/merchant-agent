@@ -14,7 +14,7 @@ if os.path.exists(_env_path):
 
 # ── LLM 提供者选择 ──
 # "ollama" 或 "deepseek"
-LLM_PROVIDER = os.environ.get("LLM_PROVIDER", "ollama")
+LLM_PROVIDER = os.environ.get("LLM_PROVIDER", "deepseek")
 
 # Ollama 配置
 OLLAMA_BASE = os.environ.get("OLLAMA_BASE", "http://localhost:11434")

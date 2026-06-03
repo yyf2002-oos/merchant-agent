@@ -2,6 +2,7 @@
 
 import inspect
 import logging
+import re
 from typing import Any, Callable
 
 from config import LOG_LEVEL
@@ -17,8 +18,25 @@ def tool(name: str = None, description: str = None):
     def decorator(func: Callable):
         tool_name = name or func.__name__
         sig = inspect.signature(func)
+        doc = inspect.getdoc(func) or ""
         properties = {}
         required = []
+
+        # Parse parameter descriptions from docstring
+        param_descs = {}
+        in_params = False
+        for line in doc.split("\n"):
+            stripped = line.strip()
+            if stripped.startswith("Args:") or stripped.startswith("Parameters:") or stripped.startswith("Params:"):
+                in_params = True
+                continue
+            if in_params:
+                # Match lines like "param_name: description" or "param_name (type): description"
+                m = re.match(r'^(\w+)\s*(?:\([^)]*\))?:\s*(.*)', stripped)
+                if m and not stripped.startswith("Returns:") and not stripped.startswith("Raises:"):
+                    param_descs[m.group(1)] = m.group(2).strip()
+                elif not stripped or stripped.startswith("Returns:") or stripped.startswith("Raises:"):
+                    in_params = False
 
         for param_name, param in sig.parameters.items():
             if param_name == "self":
@@ -27,8 +45,8 @@ def tool(name: str = None, description: str = None):
             type_map = {int: "integer", float: "number", bool: "boolean", str: "string"}
             param_type = type_map.get(param.annotation, "string")
 
-            # Get param description from docstring
-            desc = f"Parameter {param_name}"
+            # Get param description from docstring, fallback to param name
+            desc = param_descs.get(param_name, f"Parameter {param_name}")
 
             properties[param_name] = {
                 "type": param_type,

@@ -109,7 +109,7 @@ class AnalystAgent(ReActAgent):
             cost = input_data.get("cost")
             price = input_data.get("price")
             volume = input_data.get("volume")
-            if cost and price:
+            if cost is not None and price is not None:
                 extra = f"\n\n请用工具计算利润：成本{cost}元，售价{price}元，销量{volume or 100}件"
 
         user_input = f"以下是店铺经营数据，请使用工具进行分析：\n\n{data}{extra}"

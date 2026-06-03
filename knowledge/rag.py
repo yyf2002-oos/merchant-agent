@@ -4,6 +4,7 @@ import json
 import os
 import re
 import hashlib
+import threading
 from typing import Optional, Any
 
 from config import RAG_TOP_K
@@ -38,6 +39,7 @@ class SemanticRAG:
         self._cache: dict[str, Any] = {}
         self._embed_cache: dict[str, list[float]] = self._load_embed_cache()
         self._use_embedding = True
+        self._lock = threading.Lock()
 
     # ── Embedding 缓存 ──────────────────────────
 
@@ -60,27 +62,31 @@ class SemanticRAG:
 
     def _get_or_compute_embedding(self, text: str) -> Optional[list[float]]:
         key = self._cache_key(text)
-        if key in self._embed_cache:
-            return self._embed_cache[key]
+        with self._lock:
+            if key in self._embed_cache:
+                return self._embed_cache[key]
         emb = get_embedding(text)
         if emb:
-            self._embed_cache[key] = emb
-            self._save_embed_cache()
+            with self._lock:
+                self._embed_cache[key] = emb
+                self._save_embed_cache()
         return emb
 
     def _batch_embed_and_cache(self, texts: list[str]):
         """批量计算并缓存 embedding"""
         uncached = []
-        for t in texts:
-            k = self._cache_key(t)
-            if k not in self._embed_cache:
-                uncached.append(t)
+        with self._lock:
+            for t in texts:
+                k = self._cache_key(t)
+                if k not in self._embed_cache:
+                    uncached.append(t)
         if uncached:
             embs = get_embeddings_batch(uncached)
-            for t, emb in zip(uncached, embs):
-                if emb:
-                    self._embed_cache[self._cache_key(t)] = emb
-            self._save_embed_cache()
+            with self._lock:
+                for t, emb in zip(uncached, embs):
+                    if emb:
+                        self._embed_cache[self._cache_key(t)] = emb
+                self._save_embed_cache()
 
     # ── 数据加载 ────────────────────────────────
 
@@ -152,6 +158,16 @@ class SemanticRAG:
 
     # ── 公开检索接口 ────────────────────────────
 
+    def _category_match(self, category: str, stored_cat: str) -> bool:
+        """品类匹配：精确优先，子串匹配要求至少 3 字符防过度匹配"""
+        if not stored_cat:
+            return False
+        if category == stored_cat:
+            return True
+        if len(category) >= 3 and len(stored_cat) >= 3:
+            return category in stored_cat or stored_cat in category
+        return False
+
     def search_faq(self, query: str, k: int = None) -> list[dict]:
         """检索 FAQ"""
         if k is None:
@@ -173,9 +189,7 @@ class SemanticRAG:
         """按品类查找供应商"""
         lib = self._load("supplier_library.json")
         for item in lib:
-            if item.get("category") == category:
-                return item
-            if category in item.get("category", "") or item.get("category", "") in category:
+            if self._category_match(category, item.get("category", "")):
                 return item
         items = self._semantic_search(category, lib, ["category", "sourcing_region"], 1)
         return items[0] if items else None
@@ -185,9 +199,7 @@ class SemanticRAG:
         raw = self._load("region_advantages.json")
         clusters = raw.get("clusters", []) if isinstance(raw, dict) else raw
         for item in clusters:
-            if item.get("category") == category:
-                return item
-            if category in item.get("category", "") or item.get("category", "") in category:
+            if self._category_match(category, item.get("category", "")):
                 return item
         items = self._semantic_search(category, clusters, ["category", "regions", "supply_chain_tiers"], 1)
         return items[0] if items else None

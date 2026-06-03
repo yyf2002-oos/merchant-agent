@@ -35,8 +35,9 @@ def add_product(
 ) -> dict:
     """添加一条商品价格记录"""
     products = _load()
+    next_id = max((p.get("id", 0) for p in products), default=0) + 1
     record = {
-        "id": len(products) + 1,
+        "id": next_id,
         "name": name,
         "price": price,
         "category": category,
@@ -105,7 +106,7 @@ def get_stats() -> dict:
     """获取统计信息"""
     products = _load()
     if not products:
-        return {"total": 0}
+        return {"total": 0, "categories": 0, "avg_price": 0, "min_price": 0, "max_price": 0}
     prices = [p["price"] for p in products if p.get("price")]
     return {
         "total": len(products),

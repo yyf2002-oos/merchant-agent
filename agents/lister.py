@@ -119,7 +119,7 @@ class ListerAgent(ReActAgent):
         out_dir = os.path.join(os.path.dirname(__file__), "..", "outputs")
         os.makedirs(out_dir, exist_ok=True)
         ts = datetime.now().strftime("%Y%m%d_%H%M%S")
-        safe_name = re.sub(r'[\\/*?:"<>|]', "_", product_info[:20])
+        safe_name = re.sub(r'[\\/*?:"<>|\n\r\t]', "_", product_info.split("\n")[0][:20]).strip()
         filepath = os.path.join(out_dir, f"上架素材_{safe_name}_{ts}.md")
         with open(filepath, "w", encoding="utf-8") as f:
             f.write(f"# 上架素材\n\n{content}\n")

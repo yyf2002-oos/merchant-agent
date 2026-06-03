@@ -2,19 +2,21 @@
 
 import json
 import logging
+import uuid
 from typing import Any, Optional, Literal
 
-from config import OLLAMA_MODEL, OLLAMA_FAST_MODEL, LOG_LEVEL, REACT_MAX_ROUNDS
+from config import OLLAMA_MODEL, OLLAMA_FAST_MODEL, OLLAMA_BASE, LOG_LEVEL, REACT_MAX_ROUNDS
 from core.tool import get_all_definitions, execute
 from core.memory import ConversationMemory
 from core.context import AgentContext
+from agents.base import BaseAgent
 from llm import call_llm
 
 logger = logging.getLogger(__name__)
 logger.setLevel(getattr(logging, LOG_LEVEL))
 
 
-class ReActAgent:
+class ReActAgent(BaseAgent):
     """自驱型 Agent：ReAct 循环 + 原生 Function Calling + 规划反思
 
     运行模式:
@@ -34,20 +36,34 @@ class ReActAgent:
         light_model: str = "",
         temperature: float = 0.7,
     ):
-        self.name = name
-        self.description = description
+        super().__init__(name, description)
         self.system_prompt = system_prompt
         self.allowed_tools = tools
         self.model = model
         self.light_model = light_model or OLLAMA_FAST_MODEL
         self.temperature = temperature
+
+        # 自动回退：轻量模型用 Ollama 但 Ollama 不可用时，降级到主模型
+        if self.light_model and self.model:
+            from llm import _parse_model_spec
+            l_prov, _ = _parse_model_spec(self.light_model)
+            m_prov, _ = _parse_model_spec(self.model)
+            if l_prov == "ollama" and m_prov == "deepseek":
+                import httpx
+                try:
+                    httpx.get(f"{OLLAMA_BASE}/api/tags", timeout=2)
+                except Exception:
+                    self.light_model = self.model
+                    logger.warning(f"Ollama 不可用，轻量模型回退到主模型: {self.model}")
         self.memory = ConversationMemory() if use_memory else None
         logger.info(f"Agent[{name}] 初始化 tools={tools} use_memory={use_memory} model={model}")
 
     def _get_tool_defs(self) -> list[dict]:
         all_defs = get_all_definitions()
+        if self.allowed_tools is None:
+            return []  # None 表示"不允许使用任何工具"
         if not self.allowed_tools:
-            return all_defs
+            return all_defs  # 空列表表示"使用全部工具"
         return [d for d in all_defs if d["function"]["name"] in self.allowed_tools]
 
     def _call_llm(self, messages: list[dict], tools: list[dict] = None, model: str = None) -> dict:
@@ -57,6 +73,34 @@ class ReActAgent:
 
         result = call_llm(messages, model=used_model, temperature=self.temperature, tools=tools)
         return result
+
+    def _execute_single_tool(self, tc: dict, log_prefix: str = "") -> tuple[str, bool]:
+        """执行单个工具调用（含重试），返回 (result_str, has_error)"""
+        func_name = tc["function"]["name"]
+        parsed = tc["function"].get("_parsed")
+        func_args = parsed if parsed is not None else tc["function"]["arguments"]
+        tc["function"].pop("_parsed", None)
+
+        max_retries = 2
+        for attempt in range(max_retries + 1):
+            try:
+                result = execute(func_name, func_args)
+                result_str = json.dumps(result, ensure_ascii=False, indent=2) if isinstance(result, (dict, list)) else str(result)
+
+                # 检查结果是否包含错误
+                if "[错误]" in result_str or "[超时]" in result_str:
+                    if attempt < max_retries:
+                        logger.warning(f"Agent[{self.name}] 工具{func_name}返回错误，重试中({attempt+1}/{max_retries})")
+                        continue
+                    return result_str, True
+                return result_str, False
+            except Exception as e:
+                if attempt < max_retries:
+                    logger.warning(f"Agent[{self.name}] 工具{func_name}异常，重试中: {e}")
+                    continue
+                return f"[错误] 工具 {func_name} 执行失败: {e}", True
+
+        return "[错误] 达到最大重试次数", True
 
     # ── 规划 ──────────────────────────────────────
 
@@ -135,7 +179,9 @@ class ReActAgent:
         ], model=self.light_model)
         reflection = msg.get("content", "").strip()
 
-        needs_more = not reflection.startswith("✅")
+        # 检查 reflection 是否表示"已完成"（鲁棒匹配）
+        first_line = reflection.strip().split("\n")[0] if reflection else ""
+        needs_more = not (first_line.startswith("✅") or "✅ 完成" in reflection)
         return needs_more, reflection
 
     # ── 主入口 ────────────────────────────────────
@@ -143,7 +189,7 @@ class ReActAgent:
     def run(
         self,
         input_data: Any,
-        session_id: str = "default",
+        session_id: str = None,
         max_rounds: int = None,
         mode: Literal["react", "plan_execute", "plan_reflect"] = "plan_reflect",
         **kwargs,
@@ -152,7 +198,7 @@ class ReActAgent:
 
         Args:
             input_data: 用户输入
-            session_id: 会话 ID
+            session_id: 会话 ID（None 时自动生成 UUID）
             max_rounds: 最大工具调用轮次（默认 REACT_MAX_ROUNDS）
             mode: 运行模式
                 react: 标准 ReAct
@@ -164,9 +210,12 @@ class ReActAgent:
         """
         if max_rounds is None:
             max_rounds = REACT_MAX_ROUNDS
+        # 自动生成 session_id，避免全局 "default" 冲突
+        if not session_id:
+            session_id = f"{self.name}_{uuid.uuid4().hex[:8]}"
         user_input = self._format_input(input_data)
         tool_defs = self._get_tool_defs()
-        logger.info(f"Agent[{self.name}] 开始运行 mode={mode} max_rounds={max_rounds} tools={len(tool_defs)}")
+        logger.info(f"Agent[{self.name}] 开始运行 session={session_id} mode={mode} max_rounds={max_rounds} tools={len(tool_defs)}")
 
         # ── 构建上下文 ──
         ctx = None
@@ -210,48 +259,20 @@ class ReActAgent:
                 tool_has_error = False
 
                 for tc in tool_calls:
-                    func_name = tc["function"]["name"]
-                    parsed = tc["function"].get("_parsed")
-                    func_args = parsed if parsed is not None else tc["function"]["arguments"]
-                    tc["function"].pop("_parsed", None)
                     tool_call_count += 1
-
-                    # ── 执行工具，含自纠错 ──
-                    max_tool_retries = 2
-                    last_error = None
-                    for tool_try in range(max_tool_retries + 1):
-                        try:
-                            result = execute(func_name, func_args)
-                            if isinstance(result, (dict, list)):
-                                result_str = json.dumps(result, ensure_ascii=False, indent=2)
-                            else:
-                                result_str = str(result)
-
-                            # 检查结果是否包含错误
-                            if "[错误]" in result_str or "[超时]" in result_str:
-                                last_error = result_str
-                                if tool_try < max_tool_retries:
-                                    logger.warning(f"Agent[{self.name}] 工具{func_name}返回错误，重试中({tool_try+1}/{max_tool_retries})")
-                                    continue
-                                tool_has_error = True
-                            break
-                        except Exception as e:
-                            last_error = str(e)
-                            if tool_try < max_tool_retries:
-                                logger.warning(f"Agent[{self.name}] 工具{func_name}异常，重试中: {e}")
-                                continue
-                            result_str = f"[错误] 工具 {func_name} 执行失败: {e}"
-
-                    if last_error and tool_try < max_tool_retries:
-                        # 自纠错成功（重试后正常），记录但不影响流程
-                        pass
-
+                    result_str, has_err = self._execute_single_tool(tc)
                     tool_results_log.append(result_str[:200])
                     messages.append({
                         "role": "tool",
                         "content": result_str[:2000],
                         "tool_call_id": tc.get("id", ""),
                     })
+                    # 工具结果持久化到 context
+                    if ctx and result_str and "[错误]" not in result_str[:20]:
+                        func_name = tc["function"]["name"]
+                        ctx.add_tool_result(func_name, result_str[:200])
+                    if has_err:
+                        tool_has_error = True
 
                 # ── 本轮有错误时，提示 Agent 修正 ──
                 if tool_has_error and _round < max_rounds - 1:
@@ -278,26 +299,9 @@ class ReActAgent:
                             break
                         messages.append(msg2)
                         for tc in tc2:
-                            func_name = tc["function"]["name"]
-                            parsed = tc["function"].get("_parsed")
-                            func_args = parsed if parsed is not None else tc["function"]["arguments"]
-                            tc["function"].pop("_parsed", None)
                             tool_call_count += 1
-
-                            for tool_try in range(2):
-                                try:
-                                    result = execute(func_name, func_args)
-                                    if isinstance(result, (dict, list)):
-                                        result_str = json.dumps(result, ensure_ascii=False, indent=2)
-                                    else:
-                                        result_str = str(result)
-                                    break
-                                except Exception as e:
-                                    result_str = f"[错误] {e}"
-                                    if tool_try < 1:
-                                        continue
-                                    break
-
+                            result_str, _ = self._execute_single_tool(tc)
+                            tool_results_log.append(result_str[:200])
                             messages.append({
                                 "role": "tool",
                                 "content": result_str[:2000],
@@ -322,6 +326,7 @@ class ReActAgent:
             "tool_calls": tool_call_count,
             "plan": plan_text if mode in ("plan_execute", "plan_reflect") else "",
             "reflection": reflection if mode == "plan_reflect" else "",
+            "session_id": session_id,
         }
 
     def _format_input(self, input_data: Any) -> str:

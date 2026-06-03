@@ -8,9 +8,9 @@ from core.memory import ConversationMemory
 from llm import simple_prompt
 
 # 滑动窗口：保留最近 N 条原始消息
-RAW_WINDOW_SIZE = 8
+RAW_WINDOW_SIZE = 12
 # 触发摘要的消息总数阈值
-SUMMARIZE_THRESHOLD = 20
+SUMMARIZE_THRESHOLD = 16
 
 
 class AgentContext:
@@ -20,39 +20,53 @@ class AgentContext:
     - 维护近期消息（原始） + 历史摘要（压缩）
     - 自动提取关键信息（用户偏好、产品信息、决策记录）
     - 提供构建 prompt 用的压缩上下文
+    - 持久化工具有价值的结果
     """
 
     def __init__(self, session_id: str, memory: Optional[ConversationMemory] = None):
         self.session_id = session_id
         self.memory = memory or ConversationMemory()
-        self._summarized = False  # 当前会话是否已触发过摘要
 
     # ── 消息管理 ──────────────────────────────────
 
     def add_message(self, role: str, content: str):
         self.memory.add_message(self.session_id, role, content)
 
-    def get_history(self, limit: int = 30) -> list[dict]:
+    def get_history(self, limit: int = 50) -> list[dict]:
         return self.memory.get_history(self.session_id, limit)
+
+    def add_tool_result(self, tool_name: str, result_summary: str):
+        """持久化工具调用结果到 context，供后续轮次使用"""
+        entry = f"[工具:{tool_name}] {result_summary[:200]}"
+        self.memory.add_message(self.session_id, "system", entry)
 
     # ── 摘要压缩 ──────────────────────────────────
 
     def _build_summary(self, messages: list[dict]) -> str:
-        """对一段消息生成摘要"""
+        """对一段消息生成结构化摘要（200 字以内，含关键字段）"""
         text = "\n".join(
-            f"{'用户' if m['role'] == 'user' else '助手'}: {m['content'][:200]}"
-            for m in messages
+            f"{'用户' if m['role'] == 'user' else '助手'}: {m.get('content', '')[:200]}"
+            for m in messages[-30:]
         )
-        prompt = f"""请总结以下对话的核心内容（50字以内），包括：
-1. 用户的目标/需求
-2. 已经做过的决策
-3. 已经获得的关键信息
+        prompt = f"""请总结以下对话，按固定格式输出（200字以内）：
+
+## 用户目标/需求
+（用户想做什么、品类方向）
+
+## 已做决策
+（已经确定的选择，如价格区间、目标人群、产品方向）
+
+## 关键信息
+（获得的真实数据：价格、搜索量、竞争度、利润等具体数字）
+
+## 待办/未完成
+（用户还没决定的事、需要后续跟进的点）
 
 对话内容：
 {text}
 
-总结："""
-        result = simple_prompt("你是一个简洁的对话总结助手，只输出总结本身。", prompt, temperature=0.3)
+按以上格式输出总结："""
+        result = simple_prompt("你是一个简洁的对话总结助手，按固定格式输出。", prompt, temperature=0.3)
         return result.strip() or "(摘要生成失败)"
 
     def get_compressed_context(self, recent_count: int = RAW_WINDOW_SIZE) -> dict:
@@ -75,15 +89,21 @@ class AgentContext:
             history = []
             recent = all_messages
 
-        # 生成摘要
+        # 生成摘要（缓存到 SQLite 避免重复计算）
         summary = ""
-        if len(history) >= 4:  # 至少 4 条才值得摘要
-            summary = self._build_summary(history)
-            self._summarized = True
-        elif self._summarized:
-            summary = self.memory.recall(f"ctx:{self.session_id}:summary") or ""
-        else:
-            summary = ""
+        cached_summary = self.memory.recall(f"ctx:{self.session_id}:summary")
+        # 历史消息至少 3 条（约 1-2 轮对话）就触发摘要
+        summary_threshold = max(3, recent_count // 4)
+        if len(history) >= summary_threshold:
+            last_hist_count = self.memory.recall(f"ctx:{self.session_id}:hist_count")
+            if last_hist_count and int(last_hist_count) >= len(history) - 3 and cached_summary:
+                summary = cached_summary
+            else:
+                summary = self._build_summary(history)
+                self.memory.remember(f"ctx:{self.session_id}:summary", summary)
+                self.memory.remember(f"ctx:{self.session_id}:hist_count", str(len(history)))
+        elif cached_summary:
+            summary = cached_summary
 
         # 提取关键信息
         key_info = self._extract_key_info(all_messages)
@@ -110,9 +130,9 @@ class AgentContext:
         # 如果有摘要，注入作为 system 级别的上下文
         ctx_parts = []
         if ctx["summary"]:
-            ctx_parts.append(f"【历史摘要】{ctx['summary']}")
+            ctx_parts.append(f"【历史摘要】\n{ctx['summary']}")
         if ctx["key_info"]:
-            ctx_parts.append(f"【已知信息】{ctx['key_info']}")
+            ctx_parts.append(f"【已知信息】\n{ctx['key_info']}")
 
         if ctx_parts:
             messages.append({
@@ -120,36 +140,38 @@ class AgentContext:
                 "content": "\n\n".join(ctx_parts),
             })
 
-        # 追加近期消息
+        # 追加近期消息（只取 user/assistant，过滤 system 工具消息避免膨胀）
         for m in ctx["recent"]:
-            messages.append({"role": m["role"], "content": m["content"]})
+            if m["role"] in ("user", "assistant"):
+                messages.append({"role": m["role"], "content": m["content"]})
 
         return messages
 
     # ── 关键信息提取 ──────────────────────────────
 
     def _extract_key_info(self, messages: list[dict]) -> str:
-        """从对话中提取关键信息"""
+        """从对话中提取结构化关键信息"""
         # 优先用缓存的
         cached = self.memory.recall(f"ctx:{self.session_id}:key_info")
 
         # 如果有新消息（上次缓存后新增 > 5 条），重新提取
         last_count = self.memory.recall(f"ctx:{self.session_id}:msg_count")
-        if last_count and int(last_count) >= len(messages) - 5:
-            return cached or ""
+        if last_count and int(last_count) >= len(messages) - 5 and cached:
+            return cached
 
         # 提取关键信息
         text = "\n".join(
-            f"{'用户' if m['role'] == 'user' else '助手'}: {m['content'][:150]}"
+            f"{'用户' if m['role'] == 'user' else '助手'}: {m.get('content', '')[:200]}"
             for m in messages[-20:]
         )
-        prompt = f"""从以下对话中提取关键信息（30字以内）：
-- 用户的品类/商品方向
-- 预算范围
-- 目标人群
-- 其他重要信息
+        prompt = f"""从以下对话中提取关键信息（100字以内），按固定格式输出：
 
-如果没有明显的关键信息，输出"暂无"。
+- 品类/商品：
+- 预算范围：
+- 目标人群：
+- 已选产品及价格：
+- 其他重要信息：
+（没有的项填"暂无"，只输出关键信息，不要分析）
 
 对话：
 {text}
@@ -168,4 +190,7 @@ class AgentContext:
 
     def clear(self):
         self.memory.clear_session(self.session_id)
-        self._summarized = False
+        self.memory.remember(f"ctx:{self.session_id}:summary", "")
+        self.memory.remember(f"ctx:{self.session_id}:key_info", "")
+        self.memory.remember(f"ctx:{self.session_id}:msg_count", "0")
+        self.memory.remember(f"ctx:{self.session_id}:hist_count", "0")

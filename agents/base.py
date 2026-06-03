@@ -7,7 +7,7 @@ from llm import simple_prompt
 
 
 class BaseAgent(ABC):
-    """Agent 抽象基类"""
+    """Agent 抽象基类 — 所有 Agent 继承此接口"""
 
     def __init__(self, name: str, description: str):
         self.name = name
