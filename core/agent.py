@@ -67,11 +67,14 @@ class ReActAgent(BaseAgent):
         return [d for d in all_defs if d["function"]["name"] in self.allowed_tools]
 
     def _call_llm(self, messages: list[dict], tools: list[dict] = None, model: str = None) -> dict:
-        """统一 LLM 调用（自动选择 Ollama/DeepSeek），返回完整响应消息"""
+        """统一 LLM 调用（自动选择 Ollama/DeepSeek + 自动降级），返回完整响应消息"""
         used_model = model or self.model
         logger.debug(f"Agent[{self.name}] 调用 model={used_model} tools={len(tools) if tools else 0}")
 
-        result = call_llm(messages, model=used_model, temperature=self.temperature, tools=tools)
+        result = call_llm(
+            messages, model=used_model, temperature=self.temperature,
+            tools=tools, agent=self.name, session_id=getattr(self, '_session_id', ''),
+        )
         return result
 
     def _execute_single_tool(self, tc: dict, log_prefix: str = "") -> tuple[str, bool]:
@@ -213,6 +216,7 @@ class ReActAgent(BaseAgent):
         # 自动生成 session_id，避免全局 "default" 冲突
         if not session_id:
             session_id = f"{self.name}_{uuid.uuid4().hex[:8]}"
+        self._session_id = session_id
         user_input = self._format_input(input_data)
         tool_defs = self._get_tool_defs()
         logger.info(f"Agent[{self.name}] 开始运行 session={session_id} mode={mode} max_rounds={max_rounds} tools={len(tool_defs)}")

@@ -1,0 +1,53 @@
+version: "3.9"
+
+services:
+  ollama:
+    image: ollama/ollama:latest
+    container_name: merchant-ollama
+    volumes:
+      - ollama_data:/root/.ollama
+    ports:
+      - "11434:11434"
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:11434/api/tags"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    networks:
+      - merchant-net
+
+  webui:
+    build: .
+    container_name: merchant-webui
+    depends_on:
+      ollama:
+        condition: service_healthy
+    ports:
+      - "7860:7860"
+    environment:
+      - LLM_PROVIDER=ollama
+      - OLLAMA_BASE=http://ollama:11434
+      - OLLAMA_MODEL=qwen2:7b
+      - OLLAMA_FAST_MODEL=qwen2:1.5b
+      - DEEPSEEK_API_KEY=${DEEPSEEK_API_KEY:-}
+      - WEB_HOST=0.0.0.0
+      - WEB_PORT=7860
+      - LOG_LEVEL=INFO
+    volumes:
+      - merchant_data:/app/outputs
+      - merchant_db:/app/agent_memory.db
+      - merchant_monitor:/app/monitor.db
+    restart: unless-stopped
+    networks:
+      - merchant-net
+
+volumes:
+  ollama_data:
+  merchant_data:
+  merchant_db:
+  merchant_monitor:
+
+networks:
+  merchant-net:
+    driver: bridge

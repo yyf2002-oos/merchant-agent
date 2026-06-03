@@ -202,8 +202,12 @@ def call_llm(
     model: str = None,
     temperature: float = 0.7,
     tools: list[dict] = None,
+    agent: str = "",
+    session_id: str = "",
 ) -> dict:
     """统一 LLM 调用，根据模型名前缀自动选择 Ollama / DeepSeek
+
+    支持自动降级：主 provider 失败时切换到备用 provider。
 
     模型名格式:
         "deepseek:deepseek-chat"  → 走 DeepSeek
@@ -214,15 +218,10 @@ def call_llm(
         统一格式: {"role": "assistant", "content": str, "tool_calls": [...]}
         tool_calls 格式: [{"function": {"name": str, "arguments": dict}}]
     """
-    provider, actual_model = _parse_model_spec(model)
-
-    if provider is None:
-        provider = LLM_PROVIDER
-
-    if provider == "deepseek":
-        return _call_deepseek(messages, actual_model, temperature, tools)
-    else:
-        return _call_ollama(messages, actual_model, temperature, tools)
+    return call_llm_with_fallback(
+        messages, model=model, temperature=temperature,
+        tools=tools, agent=agent, session_id=session_id,
+    )
 
 
 def chat(messages: list[dict], **kwargs) -> str:
@@ -237,6 +236,170 @@ def simple_prompt(system: str, user: str, **kwargs) -> str:
         {"role": "system", "content": system},
         {"role": "user", "content": user},
     ], **kwargs)
+
+
+# ====================================================================
+#  DeepSeek 流式调用
+# ====================================================================
+
+def _call_deepseek_stream(
+    messages: list[dict],
+    model: str = None,
+    temperature: float = 0.7,
+    tools: list[dict] = None,
+):
+    """流式调用 DeepSeek API（生成器），逐块返回 content"""
+    if not DEEPSEEK_API_KEY:
+        yield "[错误] DEEPSEEK_API_KEY 未配置"
+        return
+
+    used_model = model or DEEPSEEK_MODEL
+    url = f"{DEEPSEEK_API_BASE}/v1/chat/completions"
+    headers = {
+        "Authorization": f"Bearer {DEEPSEEK_API_KEY}",
+        "Content-Type": "application/json",
+    }
+    payload = {
+        "model": used_model,
+        "messages": messages,
+        "temperature": temperature,
+        "max_tokens": 8192,
+        "stream": True,
+    }
+    if tools:
+        payload["tools"] = tools
+        payload["stream"] = False  # 工具调用模式不支持流式
+        yield _call_deepseek(messages, model, temperature, tools).get("content", "")
+        return
+
+    try:
+        with httpx.Client(timeout=AGENT_TIMEOUT) as client:
+            with client.stream("POST", url, json=payload, headers=headers) as resp:
+                for line in resp.iter_lines():
+                    if not line:
+                        continue
+                    if line.startswith("data: "):
+                        data_str = line[6:].strip()
+                        if data_str == "[DONE]":
+                            break
+                        try:
+                            chunk = json.loads(data_str)
+                            delta = chunk.get("choices", [{}])[0].get("delta", {})
+                            if content := delta.get("content"):
+                                yield content
+                        except json.JSONDecodeError:
+                            continue
+    except Exception as e:
+        yield f"[流式错误] {e}"
+
+
+# ====================================================================
+#  自动 Provider 降级
+# ====================================================================
+
+def call_llm_with_fallback(
+    messages: list[dict],
+    model: str = None,
+    temperature: float = 0.7,
+    tools: list[dict] = None,
+    agent: str = "",
+    session_id: str = "",
+) -> dict:
+    """调用 LLM，主 provider 失败时自动降级到另一个
+
+    降级策略：
+    - deepseek 超时/报错 → 自动重试 ollama
+    - ollama 超时/报错 → 自动重试 deepseek
+    - 两边都失败 → 返回错误信息
+    """
+    provider, actual_model = _parse_model_spec(model)
+    if provider is None:
+        provider = LLM_PROVIDER
+
+    # 确定主备顺序
+    if provider == "deepseek":
+        primary_provider = "deepseek"
+        fallback_provider = "ollama"
+        primary_model = actual_model or DEEPSEEK_MODEL
+        fallback_model = OLLAMA_MODEL
+    else:
+        primary_provider = "ollama"
+        fallback_provider = "deepseek"
+        primary_model = actual_model or OLLAMA_MODEL
+        fallback_model = DEEPSEEK_MODEL
+
+    t0 = time.time()
+
+    # 尝试主 provider
+    for attempt in range(MAX_RETRIES + 1):
+        try:
+            if primary_provider == "deepseek":
+                result = _call_deepseek(messages, primary_model, temperature, tools)
+            else:
+                result = _call_ollama(messages, primary_model, temperature, tools)
+
+            elapsed = int((time.time() - t0) * 1000)
+            content = result.get("content", "")
+            is_error = content.startswith("[错误]") or content.startswith("[超时]")
+
+            # 记录监控
+            try:
+                from monitor import record_call
+                record_call(
+                    provider=primary_provider,
+                    model=primary_model,
+                    duration_ms=elapsed,
+                    success=not is_error,
+                    error=content if is_error else "",
+                    agent=agent,
+                    session_id=session_id,
+                )
+            except Exception:
+                pass
+
+            if not is_error:
+                return result
+
+            logger.warning(f"{primary_provider} attempt={attempt+1} 失败，准备降级: {content[:60]}")
+            break  # 主 provider 明确失败，不再重试
+
+        except Exception as e:
+            elapsed = int((time.time() - t0) * 1000)
+            logger.warning(f"{primary_provider} 异常 attempt={attempt+1}: {e}")
+            if attempt < MAX_RETRIES:
+                time.sleep(1)
+                continue
+            try:
+                from monitor import record_call
+                record_call(provider=primary_provider, model=primary_model, duration_ms=elapsed, success=False, error=str(e), agent=agent, session_id=session_id)
+            except Exception:
+                pass
+
+    # 降级到备用 provider
+    logger.info(f"降级到 {fallback_provider}")
+    t1 = time.time()
+    try:
+        if fallback_provider == "deepseek":
+            result = _call_deepseek(messages, fallback_model, temperature, tools)
+        else:
+            result = _call_ollama(messages, fallback_model, temperature, tools)
+
+        elapsed = int((time.time() - t1) * 1000)
+        content = result.get("content", "")
+        is_error = content.startswith("[错误]") or content.startswith("[超时]")
+
+        try:
+            from monitor import record_call
+            record_call(provider=fallback_provider, model=fallback_model, duration_ms=elapsed, success=not is_error, error=content if is_error else "", agent=agent, session_id=session_id)
+        except Exception:
+            pass
+
+        if not is_error:
+            return result
+        return {"role": "assistant", "content": f"[错误] 主({primary_provider})和备用({fallback_provider})均失败，请检查配置"}
+    except Exception as e:
+        logger.error(f"降级到 {fallback_provider} 也失败: {e}")
+        return {"role": "assistant", "content": f"[错误] 主({primary_provider})和备用({fallback_provider})均异常: {e}"}
 
 
 # ====================================================================
@@ -300,12 +463,16 @@ def list_models() -> list[str]:
 # ====================================================================
 
 def stream_chat(messages: list[dict], model: str = None):
-    """流式对话 — 生成器（当前仅支持 Ollama）"""
-    if LLM_PROVIDER == "deepseek":
-        yield "[提示] DeepSeek 流式模式当前仅支持 WebUI 内部使用"
+    """流式对话 — 生成器（支持 DeepSeek 和 Ollama）"""
+    provider, actual_model = _parse_model_spec(model)
+    if provider is None:
+        provider = LLM_PROVIDER
+
+    if provider == "deepseek":
+        yield from _call_deepseek_stream(messages, actual_model)
         return
 
-    used_model = model or OLLAMA_MODEL
+    used_model = actual_model or OLLAMA_MODEL
     url = f"{OLLAMA_BASE}/api/chat"
     payload = {
         "model": used_model,
@@ -313,13 +480,16 @@ def stream_chat(messages: list[dict], model: str = None):
         "stream": True,
         "options": {"temperature": 0.7},
     }
-    with httpx.Client(timeout=AGENT_TIMEOUT) as client:
-        with client.stream("POST", url, json=payload) as resp:
-            for line in resp.iter_lines():
-                if line:
-                    try:
-                        chunk = json.loads(line)
-                        if content := chunk.get("message", {}).get("content"):
-                            yield content
-                    except json.JSONDecodeError:
-                        continue
+    try:
+        with httpx.Client(timeout=AGENT_TIMEOUT) as client:
+            with client.stream("POST", url, json=payload) as resp:
+                for line in resp.iter_lines():
+                    if line:
+                        try:
+                            chunk = json.loads(line)
+                            if content := chunk.get("message", {}).get("content"):
+                                yield content
+                        except json.JSONDecodeError:
+                            continue
+    except Exception as e:
+        yield f"[流式错误] {e}"

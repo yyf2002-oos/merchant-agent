@@ -298,8 +298,12 @@ class MerchantOrchestrator:
     def run_full_workflow(self, category: str, budget: str = "",
                           target_audience: str = "",
                           product_info: str = "",
-                          session_id: str = None) -> dict:
+                          session_id: str = None,
+                          progress_callback=None) -> dict:
         """一键完整工作流：选品 → 上架 → 客服 → 分析（带结构化跨 Agent 上下文）
+
+        Args:
+            progress_callback: 可选回调 fn(step_name, status, detail)，用于进度反馈
 
         与旧版的关键区别：
         - 使用 SharedContext 数据类传递结构化数据
@@ -309,6 +313,8 @@ class MerchantOrchestrator:
         """
         if not session_id:
             session_id = f"workflow_{uuid.uuid4().hex[:8]}"
+        if progress_callback:
+            progress_callback("workflow", "start", f"品类：{category}")
         logger.info(f"完整工作流启动 session={session_id[:12]}: category={category} budget={budget} audience={target_audience}")
 
         results = {"category": category, "session_id": session_id}
@@ -320,6 +326,8 @@ class MerchantOrchestrator:
 
         # ── Step 1: 选品 ──────────────────────────
         logger.info("工作流 Step 1/4: 选品分析")
+        if progress_callback:
+            progress_callback("selector", "running", f"正在分析「{category}」市场趋势...")
         shared.add_decision(f"目标品类：{category}")
         if budget:
             shared.add_decision(f"启动预算：{budget}元")
@@ -350,6 +358,8 @@ class MerchantOrchestrator:
 
         # ── Step 2: 上架 ──────────────────────────
         logger.info("工作流 Step 2/4: 上架素材")
+        if progress_callback:
+            progress_callback("lister", "running", f"正在为「{shared.selected_product or category}」生成上架素材...")
         listing_input = f"品类：{category}\n"
         if shared.selected_product:
             listing_input += (
@@ -368,6 +378,8 @@ class MerchantOrchestrator:
 
         # ── Step 3: 客服 ──────────────────────────
         logger.info("工作流 Step 3/4: 客服应答")
+        if progress_callback:
+            progress_callback("service", "running", "正在生成常见客服问答话术...")
         service_context = shared.to_context_prompt()
         service_welcome = self.agents["service"].run(
             "你好，我想了解一下这个商品",
@@ -379,6 +391,8 @@ class MerchantOrchestrator:
 
         # ── Step 4: 运营分析 ──────────────────────
         logger.info("工作流 Step 4/4: 运营分析")
+        if progress_callback:
+            progress_callback("analyst", "running", "正在计算利润和制定运营方案...")
         analyst_input = (
             f"新店铺启动\n\n"
             f"{shared.to_context_prompt()}\n"
@@ -398,6 +412,8 @@ class MerchantOrchestrator:
         }
 
         logger.info(f"完整工作流完成: {category} session={session_id[:12]}")
+        if progress_callback:
+            progress_callback("workflow", "done", "全流程完成")
         return results
 
     @staticmethod
