@@ -3,9 +3,8 @@
 # Import tool decorator
 from core.tool import tool
 
-# ─────────────────────────────────────────────
 # Tool 1: Knowledge Base Search
-# ─────────────────────────────────────────────
+
 @tool(description="Search the product knowledge base for pricing data by category")
 def search_price_library(category: str) -> str:
     """查找价格库中某个品类的市场价格参考
@@ -19,7 +18,6 @@ def search_price_library(category: str) -> str:
     if not ctx:
         return f"知识库中未找到「{category}」的价格数据"
     return ctx
-
 
 @tool(description="Search supplier database for factory sourcing info by category")
 def search_suppliers(category: str) -> str:
@@ -35,7 +33,6 @@ def search_suppliers(category: str) -> str:
         return f"知识库中未找到「{category}」的供应商数据"
     return ctx
 
-
 @tool(description="Search regional industry cluster advantages for a product category")
 def search_regions(category: str) -> str:
     """查找某个品类的地区产业集群优势，告诉你去哪里找工厂
@@ -49,7 +46,6 @@ def search_regions(category: str) -> str:
     if not ctx:
         return f"知识库中未找到「{category}」的产区数据"
     return f"{ctx}\n\n涉及产区：{regions}"
-
 
 @tool(description="Search FAQ knowledge base for customer service questions")
 def search_faq(query: str) -> str:
@@ -65,10 +61,8 @@ def search_faq(query: str) -> str:
         return "FAQ 库中未找到相关问题"
     return ctx
 
-
-# ─────────────────────────────────────────────
 # Tool 2: Taobao Market Data
-# ─────────────────────────────────────────────
+
 @tool(description="Get Taobao search suggestion keywords (reflects real user demand)")
 def taobao_suggest(keyword: str) -> str:
     """获取淘宝搜索下拉联想词，了解用户真实搜索需求
@@ -80,10 +74,8 @@ def taobao_suggest(keyword: str) -> str:
     results = suggest(keyword)
     return format_suggest_report(results, keyword) or f"未能获取到「{keyword}」的搜索数据"
 
-
-# ─────────────────────────────────────────────
 # Tool 3: Financial Calculator
-# ─────────────────────────────────────────────
+
 @tool(description="Calculate profit margin, costs, and revenue for a product")
 def calculate_profit(cost: float, price: float, volume: int = 1,
                      logistics: float = 0) -> str:
@@ -106,7 +98,6 @@ def calculate_profit(cost: float, price: float, volume: int = 1,
     ]
     return "\n".join(lines)
 
-
 @tool(description="Suggest optimal pricing based on cost and target margin")
 def suggest_price(cost: float, target_margin: float = 30.0) -> str:
     """建议售价：根据成本和目标利润率，给出保本价/常规价/溢价价
@@ -125,7 +116,6 @@ def suggest_price(cost: float, target_margin: float = 30.0) -> str:
     ]
     return "\n".join(lines)
 
-
 @tool(description="Score a product keyword/category for market potential (0-100)")
 def score_keyword(search_volume: int, competition: int,
                   avg_price: float, cost: float) -> str:
@@ -142,10 +132,8 @@ def score_keyword(search_volume: int, competition: int,
     level = "优秀" if score >= 70 else "良好" if score >= 50 else "一般" if score >= 30 else "较差"
     return f"品类评分: {score}/100 ({level})"
 
-
-# ─────────────────────────────────────────────
 # Tool 4: 1688 Sourcing
-# ─────────────────────────────────────────────
+
 @tool(description="Generate 1688 search URL for product sourcing")
 def generate_1688_url(product_name: str, search_type: str = "产品") -> str:
     """生成1688搜索链接：type=产品 搜商品报价，type=工厂 找供应商
@@ -160,14 +148,10 @@ def generate_1688_url(product_name: str, search_type: str = "产品") -> str:
         return f"https://s.1688.com/company/company_search.htm?keywords={encoded}%20%E5%B7%A5%E5%8E%82"
     return f"https://s.1688.com/selloffer/offer_search.htm?keywords={encoded}"
 
-
-
-# ─────────────────────────────────────────────
 # Tool 5: Memory & Notes
-# ─────────────────────────────────────────────
+
 from core.memory import ConversationMemory
 _memory_db = ConversationMemory()
-
 
 @tool(description="Save a note/fact to memory for future reference")
 def save_note(note: str) -> str:
@@ -179,7 +163,6 @@ def save_note(note: str) -> str:
     _memory_db.add_note("agent", note)
     return f"已保存笔记"
 
-
 @tool(description="Recall previously saved notes from memory")
 def recall_notes() -> str:
     """回忆之前保存的笔记，不需要参数"""
@@ -188,10 +171,8 @@ def recall_notes() -> str:
         return "暂无保存的笔记"
     return "\n".join(f"• {n}" for n in notes)
 
-
-# ─────────────────────────────────────────────
 # Tool 6: Product Listing Generator
-# ─────────────────────────────────────────────
+
 @tool(description="Generate product listing content (title, description, features)")
 def generate_listing(product_name: str, category: str, features: str,
                      target_price: str = "", cost: str = "") -> str:
@@ -216,10 +197,8 @@ def generate_listing(product_name: str, category: str, features: str,
     result = lister.run(info)
     return result.get("listing_content", "生成失败")
 
-
-# ─────────────────────────────────────────────
 # Tool 7: Product Price Manager
-# ─────────────────────────────────────────────
+
 @tool(description="Search manually recorded products by keyword, category, or price range")
 def search_product_db(keyword: str = "", category: str = "",
                       max_price: float = 0, min_price: float = 0) -> str:
@@ -243,7 +222,6 @@ def search_product_db(keyword: str = "", category: str = "",
         if r.get("note"):
             lines.append(f"  备注：{r['note']}")
     return "\n".join(lines)
-
 
 @tool(description="Add a product record to personal price database (name, price, category, platform)")
 def add_product_record(name: str, price: float, category: str = "",

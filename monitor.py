@@ -13,7 +13,6 @@ logger = logging.getLogger(__name__)
 MONITOR_DB = os.path.join(os.path.dirname(__file__), "monitor.db")
 _db_initialized = False
 
-
 def _get_conn():
     global _db_initialized
     conn = sqlite3.connect(MONITOR_DB)
@@ -50,7 +49,6 @@ DEEPSEEK_PRICES = {
     "deepseek-v4-pro": {"input": 2.0, "output": 8.0},
 }
 
-
 def record_call(
     provider: str,
     model: str,
@@ -79,7 +77,6 @@ def record_call(
     conn.commit()
     conn.close()
 
-
 def get_stats(hours: int = 24) -> dict:
     """获取最近 N 小时的统计"""
     cutoff = (datetime.now() - timedelta(hours=hours)).isoformat()
@@ -102,7 +99,6 @@ def get_stats(hours: int = 24) -> dict:
         stats["total_cost"] = round(row[3], 4) if row[3] else 0.0
         stats["avg_duration_ms"] = round(row[4]) if row[4] else 0
 
-    # 按 provider 分组
     rows = conn.execute(
         """SELECT provider, COUNT(*) as cnt, COALESCE(SUM(cost),0) as cost
            FROM llm_calls WHERE created_at >= ? GROUP BY provider""",
@@ -114,7 +110,6 @@ def get_stats(hours: int = 24) -> dict:
     conn.close()
     return stats
 
-
 def get_recent_calls(limit: int = 20) -> list[dict]:
     """获取最近的调用记录"""
     conn = _get_conn()
@@ -124,7 +119,6 @@ def get_recent_calls(limit: int = 20) -> list[dict]:
     ).fetchall()
     conn.close()
     return [dict(r) for r in rows]
-
 
 def get_daily_stats(days: int = 7) -> list[dict]:
     """获取每日统计"""

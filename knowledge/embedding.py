@@ -10,9 +10,7 @@ logger = logging.getLogger(__name__)
 
 EMBED_MODEL = "bge-m3"
 
-# 共享 HTTP 客户端（复用连接池）
 _http_client = httpx.Client(timeout=60)
-
 
 def get_embedding(text: str, model: str = EMBED_MODEL) -> Optional[list[float]]:
     """Get embedding vector for a single text (with retry)"""
@@ -29,10 +27,8 @@ def get_embedding(text: str, model: str = EMBED_MODEL) -> Optional[list[float]]:
         except Exception as e:
             logger.warning(f"Embedding failed attempt={attempt+1}/3: {e}")
             if attempt < 2:
-                import time
                 time.sleep(1)
     return None
-
 
 def get_embeddings_batch(texts: list[str], model: str = EMBED_MODEL) -> list[list[float]]:
     """Get embedding vectors for a batch of texts"""
@@ -50,7 +46,6 @@ def get_embeddings_batch(texts: list[str], model: str = EMBED_MODEL) -> list[lis
         logger.warning(f"Batch embedding failed: {e}")
         return []
 
-
 def cosine_similarity(a: list[float], b: list[float]) -> float:
     """Cosine similarity"""
     a = np.array(a, dtype=np.float64)
@@ -60,7 +55,6 @@ def cosine_similarity(a: list[float], b: list[float]) -> float:
     if norm_a == 0 or norm_b == 0:
         return 0.0
     return float(np.dot(a, b) / (norm_a * norm_b))
-
 
 def rank_by_similarity(query_emb: list[float], candidates: list[tuple[str, list[float]]]) -> list[tuple[int, float]]:
     """Rank candidates by cosine similarity, returns [(index, score), ...]"""

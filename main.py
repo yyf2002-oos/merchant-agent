@@ -5,11 +5,9 @@ import os
 import uuid
 from datetime import datetime
 
-# Windows GBK 终端兼容：设置 UTF-8 编码
 if sys.platform == "win32":
     sys.stdout.reconfigure(encoding="utf-8")  # type: ignore
 
-# 确保项目在 path 中
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 from rich.console import Console
@@ -22,9 +20,7 @@ from orchestrator import MerchantOrchestrator
 console = Console()
 orch = MerchantOrchestrator()
 
-# 全局 Session ID（CLI 启动时生成一次，整个 CLI 会话共享）
 CLI_SESSION_ID = f"cli_{datetime.now():%Y%m%d_%H%M%S}_{uuid.uuid4().hex[:6]}"
-
 
 def print_header():
     console.clear()
@@ -35,7 +31,6 @@ def print_header():
         border_style="cyan",
     ))
 
-
 def print_agents():
     table = Table(title="可用 Agent")
     table.add_column("编号", style="cyan")
@@ -44,7 +39,6 @@ def print_agents():
     for i, a in enumerate(orch.list_agents(), 1):
         table.add_row(str(i), a["name"], a["desc"])
     console.print(table)
-
 
 def run_interactive():
     print_header()
@@ -149,7 +143,6 @@ def run_interactive():
 
     console.print("[green]谢谢使用！[/green]")
 
-
 def _price_db_menu():
     """商品价格库管理"""
     from tools.product_manager import add_product, search_products, delete_product, get_stats, list_categories
@@ -238,7 +231,6 @@ def _price_db_menu():
         else:
             console.print("[red]无效选择[/red]")
 
-
 def main():
     try:
         run_interactive()
@@ -246,7 +238,6 @@ def main():
         console.print("\n[yellow]已退出[/yellow]")
     except Exception as e:
         console.print(f"[red]错误: {e}[/red]")
-
 
 if __name__ == "__main__":
     main()

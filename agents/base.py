@@ -5,7 +5,6 @@ from typing import Any
 
 from llm import simple_prompt
 
-
 class BaseAgent(ABC):
     """Agent 抽象基类 — 所有 Agent 继承此接口"""
 

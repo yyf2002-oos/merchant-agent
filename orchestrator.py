@@ -23,11 +23,6 @@ from cache import TTLCache
 logger = logging.getLogger(__name__)
 logger.setLevel(getattr(logging, LOG_LEVEL))
 
-
-# ══════════════════════════════════════════════════
-#  Cross-Agent Shared Context
-# ══════════════════════════════════════════════════
-
 @dataclass
 class SharedContext:
     """Structured context shared across Agents, replacing plain dict"""
@@ -85,11 +80,6 @@ class SharedContext:
             parts.append(f"Candidates: {len(self.recommendations)} products")
         return "\n".join(parts)
 
-
-# ══════════════════════════════════════════════════
-#  Orchestrator
-# ══════════════════════════════════════════════════
-
 class MerchantOrchestrator:
     """Merchant Agent Orchestrator"""
 
@@ -119,10 +109,6 @@ class MerchantOrchestrator:
         logger.info(f"Run Agent: {agent_key} session={session_id} input={str(input_data)[:80]}")
         return agent.run(input_data, session_id=session_id, **kwargs)
 
-    # ═══════════════════════════════════════════════
-    #  Smart Chat (with context management)
-    # ═══════════════════════════════════════════════
-
     def smart_chat(self, user_input: str, session_id: str = None) -> str:
         """Smart chat — multi-dimensional routing + context management
 
@@ -143,23 +129,18 @@ class MerchantOrchestrator:
 
         logger.info(f"smart_chat route session={session_id[:12]}: {user_input[:60]}")
 
-        # ── 构建上下文对象 ──
         ctx = AgentContext(session_id, self._memory)
 
-        # ── Method 1: LLM semantic classification (primary) ──
         route = self._llm_route(user_input)
 
-        # ── Method 2: Keyword confidence check ──
         if route == "chat":
             kw_route, confidence = self._keyword_route_with_score(user_input)
             if confidence >= 0.6:
                 logger.info(f"smart_chat keyword overrides LLM route: chat→{kw_route} (confidence={confidence})")
                 route = kw_route
 
-        # ── Execute route (with context) ──
         result = self._route_to_agent_with_context(route, user_input, ctx)
 
-        # ── Persist ──
         ctx.add_message("user", user_input)
         ctx.add_message("assistant", result)
 
@@ -170,7 +151,6 @@ class MerchantOrchestrator:
 
     def _route_to_agent_with_context(self, route: str, user_input: str, ctx: AgentContext) -> str:
         """Route to specified Agent with history context injection"""
-        # Load compressed context
         compressed = ctx.get_compressed_context()
         context_prompt = ""
         if compressed["summary"]:
@@ -188,7 +168,6 @@ class MerchantOrchestrator:
         agent = self.agents[route]
         logger.info(f"smart_chat → {route} (with context)")
 
-        # Inject context into agent input
         enriched_input = user_input
         if context_prompt:
             enriched_input = f"{context_prompt}\n\n[Current Question]\n{user_input}"
@@ -200,9 +179,7 @@ class MerchantOrchestrator:
                    or str(result))
         return content
 
-    # ═══════════════════════════════════════════════
     #  Routing
-    # ═══════════════════════════════════════════════
 
     def _llm_route(self, user_input: str) -> str:
         """LLM semantic routing"""
@@ -291,19 +268,12 @@ class MerchantOrchestrator:
 
         return best_route, min(best_score, 1.0)
 
-    # ═══════════════════════════════════════════════
-    #  Full Workflow (with SharedContext)
-    # ═══════════════════════════════════════════════
-
     def run_full_workflow(self, category: str, budget: str = "",
                           target_audience: str = "",
                           product_info: str = "",
                           session_id: str = None,
                           progress_callback=None) -> dict:
         """Full workflow: selector → lister → service → analyst (with cross-Agent SharedContext)
-
-        Args:
-            progress_callback: optional callback fn(step_name, status, detail) for progress feedback
 
         Key differences from old version:
         - Uses SharedContext dataclass for structured data passing
@@ -324,7 +294,6 @@ class MerchantOrchestrator:
             target_audience=target_audience,
         )
 
-        # ── Step 1: Selector ──
         logger.info("Workflow Step 1/4: Selector")
         if progress_callback:
             progress_callback("selector", "running", f"Analyzing market for '{category}'...")
@@ -339,7 +308,6 @@ class MerchantOrchestrator:
         )
         results["selector"] = selector_result
 
-        # Extract structured selection results
         if selector_result.get("recommendations"):
             shared.recommendations = selector_result["recommendations"][:5]
             best = shared.recommendations[0]
@@ -350,7 +318,6 @@ class MerchantOrchestrator:
             shared.add_decision(f"Best pick: {shared.selected_product} (price={shared.product_price}, cost={shared.product_cost})")
             shared.add_decision(f"Competition: {shared.competition_level}")
 
-            # Extract market insights from report
             report_text = selector_result.get("report", "")
             shared.selector_report = report_text
             insights = self._extract_insights(report_text)
@@ -359,7 +326,6 @@ class MerchantOrchestrator:
             logger.warning("Workflow: selector 未返回推荐商品，SharedContext 将缺少选品数据")
             shared.add_decision("Selector 未返回结构化推荐数据")
 
-        # ── Step 2: Lister ──
         logger.info("Workflow Step 2/4: Lister")
         if progress_callback:
             progress_callback("lister", "running", f"Generating listing for '{shared.selected_product or category}'...")
@@ -379,7 +345,6 @@ class MerchantOrchestrator:
             shared.lister_content = lister_result["listing_content"]
             shared.add_decision("Listing content generated")
 
-        # ── Step 3: Service ──
         logger.info("Workflow Step 3/4: Service")
         if progress_callback:
             progress_callback("service", "running", "Generating customer service scripts...")
@@ -392,7 +357,6 @@ class MerchantOrchestrator:
         results["service"] = service_welcome
         shared.add_decision("CS scripts generated")
 
-        # ── Step 4: Analyst ──
         logger.info("Workflow Step 4/4: Analyst")
         if progress_callback:
             progress_callback("analyst", "running", "Calculating profit and devising operations plan...")
@@ -441,10 +405,6 @@ class MerchantOrchestrator:
                     if len(insights) >= 3:
                         break
         return insights
-
-    # ═══════════════════════════════════════════════
-    #  Batch Listing
-    # ═══════════════════════════════════════════════
 
     def batch_listing(self, products: list[dict]) -> list[dict]:
         """Batch listing — generate listing content for multiple products"""

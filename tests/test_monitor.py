@@ -8,7 +8,6 @@ os.environ["LLM_PROVIDER"] = "ollama"
 import pytest
 from monitor import record_call, get_stats, get_recent_calls, get_daily_stats
 
-
 class TestMonitor:
     def test_record_and_stats(self):
         record_call(provider="deepseek", model="deepseek-chat", duration_ms=1500, success=True, agent="test_agent")

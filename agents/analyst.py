@@ -77,7 +77,6 @@ ANALYST_SYSTEM = """你是一个接地气的电商运营数据分析师。你的
 - 如果数据不全，明确指出"缺少XX数据，以下分析基于XX假设"
 - 不要用"肯定""一定""保证"等绝对化词汇"""
 
-
 class AnalystAgent(ReActAgent):
     """Analyst Agent — auto-calls calculation tools for operations analysis"""
 

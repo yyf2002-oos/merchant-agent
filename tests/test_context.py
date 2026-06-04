@@ -9,14 +9,12 @@ import pytest
 from core.context import AgentContext
 from core.memory import ConversationMemory
 
-
 @pytest.fixture
 def ctx():
     mem = ConversationMemory()
     context = AgentContext("test_ctx_session", mem)
     yield context
     context.clear()
-
 
 class TestAgentContext:
     def test_add_and_get_message(self, ctx):

@@ -6,7 +6,6 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 import pytest
 from core.tool import tool, get_definition, get_all_definitions, execute, list_tools, clear
 
-
 class TestToolDecorator:
     def setup_method(self):
         clear()

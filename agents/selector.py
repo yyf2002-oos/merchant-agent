@@ -83,7 +83,6 @@ SELECTOR_SYSTEM = """你是电商选品专家。你的核心价值：用**真实
 
 严禁：编造商品名、编造价格、虚构搜索量、使用"海量""巨大""极好"等空洞形容词。数据要具体、建议要可执行。"""
 
-
 class SelectorAgent(ReActAgent):
     """Selector Agent — auto-calls Taobao tools + knowledge base"""
 

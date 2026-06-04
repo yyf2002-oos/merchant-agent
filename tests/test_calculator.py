@@ -6,7 +6,6 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 import pytest
 from tools.calculator import profit_analysis, price_suggestion, keyword_score
 
-
 class TestProfitAnalysis:
     def test_basic_profit(self):
         r = profit_analysis(cost=10, price=25, volume=200, logistics_cost=0)
@@ -36,7 +35,6 @@ class TestProfitAnalysis:
         assert r["profit"] < 0
         assert r["margin"] < 0
 
-
 class TestPriceSuggestion:
     def test_basic_pricing(self):
         r = price_suggestion(cost=50, target_margin=30)
@@ -51,7 +49,6 @@ class TestPriceSuggestion:
     def test_high_target_margin(self):
         r = price_suggestion(cost=100, target_margin=60)
         assert r["min_price"] > r["cost"]
-
 
 class TestKeywordScore:
     def test_normal_score(self):

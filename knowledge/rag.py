@@ -12,7 +12,6 @@ from knowledge.embedding import get_embedding, get_embeddings_batch, rank_by_sim
 
 EMBED_CACHE_FILE = os.path.join(os.path.dirname(__file__), "data", ".embed_cache.json")
 
-
 def _cn_tokenize(text: str) -> set[str]:
     """中文+英文混合分词（降级用）"""
     text = text.lower()
@@ -28,7 +27,6 @@ def _cn_tokenize(text: str) -> set[str]:
             tokens.add(chunk[i : i + 2])
     return tokens
 
-
 class SemanticRAG:
     """语义 RAG — embedding 检索 + 关键词降级"""
 
@@ -40,8 +38,6 @@ class SemanticRAG:
         self._embed_cache: dict[str, list[float]] = self._load_embed_cache()
         self._use_embedding = True
         self._lock = threading.Lock()
-
-    # ── Embedding 缓存 ──────────────────────────
 
     def _load_embed_cache(self) -> dict[str, list[float]]:
         if os.path.exists(EMBED_CACHE_FILE):
@@ -88,18 +84,14 @@ class SemanticRAG:
                         self._embed_cache[self._cache_key(t)] = emb
                 self._save_embed_cache()
 
-    # ── 数据加载 ────────────────────────────────
-
     def _load(self, filename: str) -> list[dict]:
         path = os.path.join(self.data_dir, filename)
         mtime = os.path.getmtime(path) if os.path.exists(path) else 0
-        # 检查文件是否已修改（WebUI 可能通过 data_manager.py 直接写 JSON）
         cache_entry = self._cache.get(filename)
         if cache_entry is not None:
             cached_data, cached_mtime = cache_entry
             if mtime == cached_mtime:
                 return cached_data
-        # 重新加载
         if os.path.exists(path):
             with open(path, "r", encoding="utf-8") as f:
                 data = json.load(f)
@@ -107,8 +99,6 @@ class SemanticRAG:
             data = []
         self._cache[filename] = (data, mtime)
         return data
-
-    # ── 语义搜索 ────────────────────────────────
 
     def _semantic_search(self, query: str, items: list[dict],
                          text_fields: list[str], k: int) -> list[dict]:
@@ -164,8 +154,6 @@ class SemanticRAG:
         scored.sort(key=lambda x: x[0], reverse=True)
         return [s[1] for s in scored[:k]]
 
-    # ── 公开检索接口 ────────────────────────────
-
     def _category_match(self, category: str, stored_cat: str) -> bool:
         """品类匹配：精确优先，子串匹配要求至少 3 字符防过度匹配"""
         if not stored_cat:
@@ -220,8 +208,6 @@ class SemanticRAG:
                 return t
         items = self._semantic_search(category, templates, ["category", "template"], 1)
         return items[0] if items else None
-
-    # ── 格式化输出（与原接口完全兼容） ──────────
 
     def format_price_context(self, category: str) -> str:
         data = self.search_price_library(category)
@@ -291,10 +277,8 @@ class SemanticRAG:
         templates = self._load("product_templates.json")
         return [t["category"] for t in templates]
 
-
 # 全局单例（接口兼容）
 _rag = None
-
 
 def get_rag() -> SemanticRAG:
     global _rag

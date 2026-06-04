@@ -8,7 +8,6 @@ os.environ["LLM_PROVIDER"] = "ollama"
 import pytest
 from orchestrator import SharedContext, MerchantOrchestrator
 
-
 class TestSharedContext:
     def test_basic_creation(self):
         sc = SharedContext(category="宠物项圈", budget="5000")
@@ -45,7 +44,6 @@ class TestSharedContext:
         sc = SharedContext()
         prompt = sc.to_context_prompt()
         assert "当前项目上下文" in prompt
-
 
 class TestMerchantOrchestrator:
     def test_list_agents(self):

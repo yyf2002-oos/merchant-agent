@@ -7,7 +7,6 @@ import time
 import pytest
 from cache import TTLCache
 
-
 class TestTTLCache:
     def test_set_and_get(self):
         cache = TTLCache(capacity=10, ttl_seconds=60)

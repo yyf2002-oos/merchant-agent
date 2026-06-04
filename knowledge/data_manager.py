@@ -10,7 +10,6 @@ logger = logging.getLogger(__name__)
 
 DATA_DIR = os.path.join(os.path.dirname(__file__), "data")
 
-
 def _load_json(filename: str) -> list | dict:
     path = os.path.join(DATA_DIR, filename)
     if not os.path.exists(path):
@@ -22,7 +21,6 @@ def _load_json(filename: str) -> list | dict:
         logger.error(f"加载 {filename} 失败: {e}")
         return []
 
-
 def _save_json(filename: str, data: list | dict) -> bool:
     path = os.path.join(DATA_DIR, filename)
     try:
@@ -33,20 +31,13 @@ def _save_json(filename: str, data: list | dict) -> bool:
         logger.error(f"保存 {filename} 失败: {e}")
         return False
 
-
-# ═════════════════════════════════════════════════
-#  FAQ
-# ═════════════════════════════════════════════════
-
 def get_all_faqs() -> list[dict]:
     return list(_load_json("faq.json"))
-
 
 def add_faq(q: str, a: str) -> bool:
     faqs = _load_json("faq.json")
     faqs.append({"q": q, "a": a})
     return _save_json("faq.json", faqs)
-
 
 def update_faq(index: int, q: str, a: str) -> bool:
     faqs = _load_json("faq.json")
@@ -55,7 +46,6 @@ def update_faq(index: int, q: str, a: str) -> bool:
         return _save_json("faq.json", faqs)
     return False
 
-
 def delete_faq(index: int) -> bool:
     faqs = _load_json("faq.json")
     if 0 <= index < len(faqs):
@@ -63,24 +53,16 @@ def delete_faq(index: int) -> bool:
         return _save_json("faq.json", faqs)
     return False
 
-
-# ═════════════════════════════════════════════════
-#  价格库
-# ═════════════════════════════════════════════════
-
 def get_price_library() -> list[dict]:
     return list(_load_json("price_library.json"))
 
-
 def add_price_category(category: str, data: dict) -> bool:
     lib = _load_json("price_library.json")
-    # 检查是否已存在
     for item in lib:
         if item.get("category") == category:
             return False  # 已存在
     lib.append({"category": category, "subcategories": [data]})
     return _save_json("price_library.json", lib)
-
 
 def update_price_subcategory(category: str, sub_index: int, data: dict) -> bool:
     lib = _load_json("price_library.json")
@@ -92,7 +74,6 @@ def update_price_subcategory(category: str, sub_index: int, data: dict) -> bool:
                 return _save_json("price_library.json", lib)
     return False
 
-
 def add_price_subcategory(category: str, data: dict) -> bool:
     lib = _load_json("price_library.json")
     for item in lib:
@@ -100,7 +81,6 @@ def add_price_subcategory(category: str, data: dict) -> bool:
             item.setdefault("subcategories", []).append(data)
             return _save_json("price_library.json", lib)
     return False
-
 
 def delete_price_subcategory(category: str, sub_index: int) -> bool:
     lib = _load_json("price_library.json")
@@ -112,14 +92,8 @@ def delete_price_subcategory(category: str, sub_index: int) -> bool:
                 return _save_json("price_library.json", lib)
     return False
 
-
-# ═════════════════════════════════════════════════
-#  供应商库
-# ═════════════════════════════════════════════════
-
 def get_suppliers() -> list[dict]:
     return list(_load_json("supplier_library.json"))
-
 
 def add_supplier(category: str, data: dict) -> bool:
     lib = _load_json("supplier_library.json")
@@ -128,7 +102,6 @@ def add_supplier(category: str, data: dict) -> bool:
         if item.get("category") == category:
             item.setdefault("products", []).append(data)
             return _save_json("supplier_library.json", lib)
-    # 新品类
     lib.append({
         "category": category,
         "sourcing_region": [],
@@ -137,7 +110,6 @@ def add_supplier(category: str, data: dict) -> bool:
         "products": [data],
     })
     return _save_json("supplier_library.json", lib)
-
 
 def update_supplier_product(category: str, prod_index: int, data: dict) -> bool:
     lib = _load_json("supplier_library.json")
@@ -149,7 +121,6 @@ def update_supplier_product(category: str, prod_index: int, data: dict) -> bool:
                 return _save_json("supplier_library.json", lib)
     return False
 
-
 def delete_supplier_product(category: str, prod_index: int) -> bool:
     lib = _load_json("supplier_library.json")
     for item in lib:
@@ -160,18 +131,8 @@ def delete_supplier_product(category: str, prod_index: int) -> bool:
                 return _save_json("supplier_library.json", lib)
     return False
 
-
-# ═════════════════════════════════════════════════
-#  上架模板
-# ═════════════════════════════════════════════════
-
 def get_all_templates() -> list[dict]:
     return list(_load_json("product_templates.json"))
-
-
-# ═════════════════════════════════════════════════
-#  品类列表（所有来源的品类去重合并）
-# ═════════════════════════════════════════════════
 
 def get_all_categories() -> list[str]:
     """获取所有知识库中涉及的品类（去重排序）"""

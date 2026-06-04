@@ -8,7 +8,6 @@ from typing import Optional
 DATA_DIR = os.path.join(os.path.dirname(__file__), "..", "knowledge", "data")
 DATA_FILE = os.path.join(DATA_DIR, "product_library.json")
 
-
 def _load() -> list[dict]:
     if os.path.exists(DATA_FILE):
         try:
@@ -18,12 +17,10 @@ def _load() -> list[dict]:
             return []
     return []
 
-
 def _save(products: list[dict]):
     os.makedirs(DATA_DIR, exist_ok=True)
     with open(DATA_FILE, "w", encoding="utf-8") as f:
         json.dump(products, f, ensure_ascii=False, indent=2)
-
 
 def add_product(
     name: str,
@@ -49,7 +46,6 @@ def add_product(
     products.append(record)
     _save(products)
     return record
-
 
 def search_products(
     keyword: str = "",
@@ -80,7 +76,6 @@ def search_products(
 
     return results
 
-
 def delete_product(product_id: int) -> bool:
     """删除一条记录"""
     products = _load()
@@ -91,7 +86,6 @@ def delete_product(product_id: int) -> bool:
         return True
     return False
 
-
 def list_categories() -> list[str]:
     """列出所有已有的品类"""
     products = _load()
@@ -100,7 +94,6 @@ def list_categories() -> list[str]:
         if p.get("category"):
             cats.add(p["category"])
     return sorted(cats)
-
 
 def get_stats() -> dict:
     """获取统计信息"""

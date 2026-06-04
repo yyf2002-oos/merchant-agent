@@ -12,7 +12,6 @@ RAW_WINDOW_SIZE = 12
 # 触发摘要的消息总数阈值
 SUMMARIZE_THRESHOLD = 16
 
-
 class AgentContext:
     """管理 Agent 的对话上下文
 
@@ -27,8 +26,6 @@ class AgentContext:
         self.session_id = session_id
         self.memory = memory or ConversationMemory()
 
-    # ── 消息管理 ──────────────────────────────────
-
     def add_message(self, role: str, content: str):
         self.memory.add_message(self.session_id, role, content)
 
@@ -39,8 +36,6 @@ class AgentContext:
         """持久化工具调用结果到 context，供后续轮次使用"""
         entry = f"[工具:{tool_name}] {result_summary[:200]}"
         self.memory.add_message(self.session_id, "system", entry)
-
-    # ── 摘要压缩 ──────────────────────────────────
 
     def _build_summary(self, messages: list[dict]) -> str:
         """对一段消息生成结构化摘要（200 字以内，含关键字段）"""
@@ -118,9 +113,6 @@ class AgentContext:
     def get_formatted_context(self, system_prompt: str) -> list[dict]:
         """构建完整的 messages 列表给 LLM
 
-        Args:
-            system_prompt: Agent 的系统提示词
-
         Returns:
             messages: 可直接传给 LLM 的消息列表
         """
@@ -146,8 +138,6 @@ class AgentContext:
                 messages.append({"role": m["role"], "content": m["content"]})
 
         return messages
-
-    # ── 关键信息提取 ──────────────────────────────
 
     def _extract_key_info(self, messages: list[dict]) -> str:
         """从对话中提取结构化关键信息"""
@@ -185,8 +175,6 @@ class AgentContext:
         self.memory.remember(f"ctx:{self.session_id}:msg_count", str(len(messages)))
 
         return info
-
-    # ── 清理 ──────────────────────────────────────
 
     def clear(self):
         self.memory.clear_session(self.session_id)

@@ -4,7 +4,6 @@ import os
 import sqlite3
 from typing import Optional
 
-
 class ConversationMemory:
     """Persistent conversation memory for agents"""
 

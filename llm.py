@@ -15,13 +15,7 @@ from config import (
 logger = logging.getLogger(__name__)
 logger.setLevel(getattr(logging, LOG_LEVEL))
 
-# 共享 HTTP 客户端（复用连接池，避免每次新建 TCP 连接）
 _http_client = httpx.Client(timeout=AGENT_TIMEOUT)
-
-
-# ====================================================================
-#  DeepSeek (OpenAI 兼容格式) 调用
-# ====================================================================
 
 def _call_deepseek(
     messages: list[dict],
@@ -100,7 +94,6 @@ def _call_deepseek(
                 continue
             return {"role": "assistant", "content": f"[错误] {e}"}
 
-
 def _call_deepseek_text(
     messages: list[dict],
     model: str = None,
@@ -109,11 +102,6 @@ def _call_deepseek_text(
     """Call DeepSeek and return text content"""
     result = _call_deepseek(messages, model, temperature)
     return result.get("content")
-
-
-# ====================================================================
-#  Ollama 调用
-# ====================================================================
 
 def _call_ollama(
     messages: list[dict],
@@ -159,7 +147,6 @@ def _call_ollama(
                 continue
             return {"role": "assistant", "content": f"[错误] {e}"}
 
-
 def _call_ollama_text(
     messages: list[dict],
     model: str = None,
@@ -168,11 +155,6 @@ def _call_ollama_text(
     """Call Ollama and return text content"""
     result = _call_ollama(messages, model, temperature)
     return result.get("content")
-
-
-# ====================================================================
-#  模型名前缀解析 + 统一路由
-# ====================================================================
 
 def _parse_model_spec(model_spec: str) -> tuple[str | None, str | None]:
     """Parse model name prefix, returns (provider, actual_model)
@@ -189,7 +171,6 @@ def _parse_model_spec(model_spec: str) -> tuple[str | None, str | None]:
         provider, *rest = model_spec.split(":", 1)
         return provider, rest[0] if rest else None
     return None, model_spec
-
 
 def call_llm(
     messages: list[dict],
@@ -217,12 +198,10 @@ def call_llm(
         tools=tools, agent=agent, session_id=session_id,
     )
 
-
 def chat(messages: list[dict], **kwargs) -> str:
     """Simple chat"""
     result = call_llm(messages, **kwargs)
     return result.get("content", "")
-
 
 def simple_prompt(system: str, user: str, **kwargs) -> str:
     """One-line convenience for system+user prompt"""
@@ -230,11 +209,6 @@ def simple_prompt(system: str, user: str, **kwargs) -> str:
         {"role": "system", "content": system},
         {"role": "user", "content": user},
     ], **kwargs)
-
-
-# ====================================================================
-#  DeepSeek 流式调用
-# ====================================================================
 
 def _call_deepseek_stream(
     messages: list[dict],
@@ -285,11 +259,6 @@ def _call_deepseek_stream(
     except Exception as e:
         yield f"[流式错误] {e}"
 
-
-# ====================================================================
-#  自动 Provider 降级
-# ====================================================================
-
 def call_llm_with_fallback(
     messages: list[dict],
     model: str = None,
@@ -309,7 +278,6 @@ def call_llm_with_fallback(
     if provider is None:
         provider = LLM_PROVIDER
 
-    # Determine primary/fallback order
     if provider == "deepseek":
         primary_provider = "deepseek"
         fallback_provider = "ollama"
@@ -323,7 +291,6 @@ def call_llm_with_fallback(
 
     t0 = time.time()
 
-    # Try primary provider
     for attempt in range(MAX_RETRIES + 1):
         try:
             if primary_provider == "deepseek":
@@ -335,7 +302,6 @@ def call_llm_with_fallback(
             content = result.get("content", "")
             is_error = content.startswith("[错误]") or content.startswith("[超时]")
 
-            # 记录监控
             try:
                 from monitor import record_call
                 record_call(
@@ -368,7 +334,6 @@ def call_llm_with_fallback(
             except Exception:
                 pass
 
-    # Fallback to backup provider
     logger.info(f"Falling back to {fallback_provider}")
     t1 = time.time()
     try:
@@ -393,11 +358,6 @@ def call_llm_with_fallback(
     except Exception as e:
         logger.error(f"Fallback to {fallback_provider} also failed: {e}")
         return {"role": "assistant", "content": f"[错误] 主({primary_provider})和备用({fallback_provider})均异常: {e}"}
-
-
-# ====================================================================
-#  健康检查
-# ====================================================================
 
 def check_llm() -> tuple[bool, str]:
     """Check if the current LLM provider is available"""
@@ -429,12 +389,10 @@ def check_llm() -> tuple[bool, str]:
         except Exception as e:
             return False, f"Ollama connection failed: {e}"
 
-
 def check_ollama() -> bool:
     """Backward-compatible alias for check_llm"""
     ok, _ = check_llm()
     return ok
-
 
 def list_models() -> list[str]:
     """List available Ollama models"""
@@ -446,11 +404,6 @@ def list_models() -> list[str]:
     except Exception:
         pass
     return []
-
-
-# ====================================================================
-#  流式对话
-# ====================================================================
 
 def stream_chat(messages: list[dict], model: str = None):
     """Streaming chat — generator (supports DeepSeek and Ollama)"""

@@ -37,10 +37,8 @@ _rate_limit_store: dict[str, list[float]] = {}
 
 USERS_DB = os.path.join(os.path.dirname(__file__), "agent_memory.db")
 
-
 def _hash_password(password: str) -> str:
     return hashlib.sha256(password.encode("utf-8")).hexdigest()
-
 
 def _init_users():
     """Initialize users table with hashed password storage"""
@@ -62,9 +60,7 @@ def _init_users():
         logger.warning(f"创建默认用户失败: {e}")
     conn.close()
 
-
 _init_users()
-
 
 def check_login(username: str, password: str) -> bool:
     """Gradio auth callback with hashed password verification"""
@@ -77,7 +73,6 @@ def check_login(username: str, password: str) -> bool:
         return row is not None
     except Exception:
         return False
-
 
 def _check_rate_limit(ip: str) -> bool:
     if not RATE_LIMIT_ENABLED:
@@ -92,7 +87,6 @@ def _check_rate_limit(ip: str) -> bool:
     _rate_limit_store[ip].append(now)
     return True
 
-
 def _check_llm():
     provider = LLM_PROVIDER
     if provider == "deepseek":
@@ -105,22 +99,15 @@ def _check_llm():
             return False, "❌ Ollama 未运行！请先执行 ollama serve"
         return True, ""
 
-
 def check_env():
     ok, msg = check_llm()
     models = list_models() if ok else []
     return ok, models, msg
 
-
 def _get_session_id(request: gr.Request) -> str:
     """基于用户名+时间戳生成 session"""
     username = getattr(request, "username", "anonymous") or "anonymous"
     return f"{username}_{datetime.now():%Y%m%d_%H%M%S}_{uuid.uuid4().hex[:6]}"
-
-
-# ═════════════════════════════════════════════════
-#  智能对话
-# ═════════════════════════════════════════════════
 
 def agent_chat(message, history, request: gr.Request):
     ok, err = _check_llm()
@@ -146,11 +133,6 @@ def agent_chat(message, history, request: gr.Request):
         logger.error(f"chat 异常: {e}", exc_info=True)
         yield f"❌ 处理出错: {e}"
 
-
-# ═════════════════════════════════════════════════
-#  选品 / 上架 / 货源 / 客服 / 运营分析
-# ═════════════════════════════════════════════════
-
 def run_selector(category, budget, audience, request: gr.Request):
     ok, err = _check_llm()
     if not ok:
@@ -174,7 +156,6 @@ def run_selector(category, budget, audience, request: gr.Request):
         logger.error(f"selector 异常: {e}", exc_info=True)
         return f"❌ 处理出错: {e}", None
 
-
 def run_lister(name, category, features, price, cost, request: gr.Request):
     ok, err = _check_llm()
     if not ok:
@@ -194,7 +175,6 @@ def run_lister(name, category, features, price, cost, request: gr.Request):
     except Exception as e:
         return f"❌ 处理出错: {e}"
 
-
 def run_sourcing(name, category, target_price, expected_sales, budget, request: gr.Request):
     ok, err = _check_llm()
     if not ok:
@@ -212,7 +192,6 @@ def run_sourcing(name, category, target_price, expected_sales, budget, request: 
     except Exception as e:
         return f"❌ 处理出错: {e}"
 
-
 def run_service(query, product_context, request: gr.Request):
     ok, err = _check_llm()
     if not ok:
@@ -226,7 +205,6 @@ def run_service(query, product_context, request: gr.Request):
         return result.get("answer", "生成失败")
     except Exception as e:
         return f"❌ 处理出错: {e}"
-
 
 def run_analyst(data, cost, price, volume, request: gr.Request):
     ok, err = _check_llm()
@@ -253,7 +231,6 @@ def run_analyst(data, cost, price, volume, request: gr.Request):
         return report, pt if pt else None
     except Exception as e:
         return f"❌ 处理出错: {e}", None
-
 
 def run_workflow(category, budget, audience, request: gr.Request):
     ok, err = _check_llm()
@@ -316,11 +293,6 @@ def run_workflow(category, budget, audience, request: gr.Request):
     except Exception as e:
         yield f"❌ 工作流出错: {e}"
 
-
-# ═════════════════════════════════════════════════
-#  批量上架
-# ═════════════════════════════════════════════════
-
 def parse_csv(file):
     if file is None:
         return None, "请上传 CSV 文件"
@@ -342,7 +314,6 @@ def parse_csv(file):
         return products, f"成功解析 {len(products)} 个商品"
     except Exception as e:
         return None, f"解析失败: {e}"
-
 
 def run_batch_listing(file):
     ok, err = _check_llm()
@@ -376,7 +347,6 @@ def run_batch_listing(file):
     output += "---\n✅ 全部完成"
     yield output, all_results
 
-
 def export_batch_csv(results):
     if not results:
         return None
@@ -386,7 +356,6 @@ def export_batch_csv(results):
     for r in results:
         name = r.get("name", "")
         lines = r.get("content", "").split("\n")
-        # 匹配 "方案N：" 开头的标题行（如 "方案1：淘宝搜索优化版"），排除正文中随意出现的"方案"
         titles = [l for l in lines if re.match(r'^方案\d+[：:]', l.strip())]
         t1 = titles[0].split("：")[-1].strip() if len(titles) > 0 else ""
         t2 = titles[1].split("：")[-1].strip() if len(titles) > 1 else ""
@@ -396,11 +365,6 @@ def export_batch_csv(results):
     tmp.write(out.getvalue())
     tmp.close()
     return tmp.name
-
-
-# ═════════════════════════════════════════════════
-#  知识库管理
-# ═════════════════════════════════════════════════
 
 def refresh_faq_list():
     faqs = get_all_faqs()
@@ -413,13 +377,11 @@ def refresh_faq_list():
         lines.append("")
     return "\n".join(lines)
 
-
 def add_faq_entry(q, a):
     if not q.strip() or not a.strip():
         return "请输入问题和答案", refresh_faq_list()
     add_faq(q.strip(), a.strip())
     return "✅ 已添加", refresh_faq_list()
-
 
 def delete_faq_entry(index_str):
     try:
@@ -429,7 +391,6 @@ def delete_faq_entry(index_str):
         return "❌ 无效编号", refresh_faq_list()
     except (ValueError, IndexError):
         return "❌ 请输入有效编号", refresh_faq_list()
-
 
 def refresh_price_view():
     lib = get_price_library()
@@ -443,14 +404,12 @@ def refresh_price_view():
         lines.append("")
     return "\n".join(lines)
 
-
 def add_price_item(category, name, price_range, cost_range, competition):
     if not category.strip() or not name.strip():
         return "请输入品类和子类名称", refresh_price_view()
     data = {"name": name.strip(), "price_range": price_range or "?", "cost_range": cost_range or "?", "target": "通用", "features": [], "competition": competition or "中"}
     ok = add_price_subcategory(category.strip(), data)
     return ("✅ 已添加" if ok else "❌ 品类不存在，请先确认品类名称"), refresh_price_view()
-
 
 def refresh_supplier_view():
     suppliers = get_suppliers()
@@ -465,14 +424,12 @@ def refresh_supplier_view():
         lines.append("")
     return "\n".join(lines)
 
-
 def add_supplier_item(category, name, wholesale_price, moq, region):
     if not category.strip() or not name.strip():
         return "请输入品类和产品名称", refresh_supplier_view()
     data = {"name": name.strip(), "wholesale_price": wholesale_price or "?", "moq": moq or "?", "moq_price": "?", "supplier_types": [region or "未知"], "sourcing_notes": ""}
     ok = add_supplier(category.strip(), data)
     return ("✅ 已添加" if ok else "❌ 添加失败"), refresh_supplier_view()
-
 
 def refresh_template_view():
     templates = get_all_templates()
@@ -486,11 +443,6 @@ def refresh_template_view():
         lines.append(f"- SEO: {', '.join(t.get('seo_keywords', [])[:3])}")
         lines.append("")
     return "\n".join(lines)
-
-
-# ═════════════════════════════════════════════════
-#  系统监控
-# ═════════════════════════════════════════════════
 
 def refresh_system_status():
     try:
@@ -522,11 +474,6 @@ def refresh_system_status():
         recent_lines.append(f"- {status} {r.get('provider','?')}/{r.get('model','?')} {r.get('duration_ms',0)}ms | {r.get('agent','')}")
     return "\n".join(lines), "\n".join(recent_lines)
 
-
-# ═════════════════════════════════════════════════
-#  构建界面
-# ═════════════════════════════════════════════════
-
 def build_app():
     with gr.Blocks(title="商家智能运营 Agent", theme="soft") as app:
         gr.Markdown("""# 🛒 商家智能运营 Agent
@@ -534,7 +481,7 @@ def build_app():
         """)
 
         with gr.Tabs():
-            # ===== Tab 1: 智能对话 =====
+
             with gr.TabItem("💬 智能对话"):
                 gr.Markdown("随便问，自动路由到对应 Agent。**支持多轮上下文记忆。**")
                 gr.ChatInterface(
@@ -544,7 +491,6 @@ def build_app():
                     additional_inputs=[],
                 )
 
-            # ===== Tab 2: 选品 =====
             with gr.TabItem("📋 选品分析"):
                 with gr.Row():
                     with gr.Column():
@@ -557,7 +503,6 @@ def build_app():
                         recs_out = gr.Markdown(label="推荐商品评分")
                 btn_selector.click(run_selector, [category_in, budget_in, audience_in], [selector_out, recs_out])
 
-            # ===== Tab 3: 上架 =====
             with gr.TabItem("📝 上架素材"):
                 with gr.Row():
                     with gr.Column():
@@ -571,7 +516,6 @@ def build_app():
                         lister_out = gr.Markdown(label="上架素材")
                 btn_lister.click(run_lister, [name_in, cat_in, feat_in, price_in, cost_in], lister_out)
 
-            # ===== Tab 4: 批量上架 =====
             with gr.TabItem("📦 批量上架"):
                 with gr.Row():
                     with gr.Column():
@@ -584,7 +528,6 @@ def build_app():
                 btn_batch.click(run_batch_listing, file_input, [batch_out, state])
                 state.change(export_batch_csv, state, download_file)
 
-            # ===== Tab 5: 货源 =====
             with gr.TabItem("🏭 一手货源"):
                 with gr.Row():
                     with gr.Column():
@@ -598,7 +541,6 @@ def build_app():
                         sourcing_out = gr.Markdown(label="货源分析报告")
                 btn_sourcing.click(run_sourcing, [src_name, src_cat, src_price, src_sales, src_budget], sourcing_out)
 
-            # ===== Tab 6: 客服 =====
             with gr.TabItem("💬 客服应答"):
                 with gr.Row():
                     with gr.Column():
@@ -609,7 +551,6 @@ def build_app():
                         service_out = gr.Markdown(label="客服回复")
                 btn_service.click(run_service, [query_in, ctx_in], service_out)
 
-            # ===== Tab 7: 运营分析 =====
             with gr.TabItem("📊 运营分析"):
                 with gr.Row():
                     with gr.Column():
@@ -624,7 +565,6 @@ def build_app():
                         pricing_out = gr.Textbox(label="定价建议", lines=3)
                 btn_analyst.click(run_analyst, [data_in, cost_an, price_an, vol_an], [analyst_out, pricing_out])
 
-            # ===== Tab 8: 一键工作流 =====
             with gr.TabItem("🚀 一键工作流"):
                 with gr.Row():
                     with gr.Column():
@@ -636,7 +576,6 @@ def build_app():
                         wf_out = gr.Markdown(label="工作流报告")
                 btn_workflow.click(run_workflow, [wf_category, wf_budget, wf_audience], wf_out)
 
-            # ===== Tab 9: 知识库管理 =====
             with gr.TabItem("📚 知识库管理"):
                 with gr.Tabs():
                     # FAQ 管理
@@ -684,23 +623,19 @@ def build_app():
                         tmpl_display = gr.Markdown(refresh_template_view)
                         gr.Markdown("> 模板仅支持通过 JSON 文件直接编辑：`knowledge/data/product_templates.json`")
 
-            # ===== Tab 10: 系统状态 =====
             with gr.TabItem("📊 系统状态"):
                 gr.Markdown("### LLM 调用监控（最近 24 小时）")
                 refresh_btn = gr.Button("🔄 刷新数据")
                 status_out = gr.Markdown("点击刷新加载数据...")
                 recent_out = gr.Markdown()
                 refresh_btn.click(refresh_system_status, outputs=[status_out, recent_out])
-                # 页面加载时自动刷新
                 app.load(refresh_system_status, outputs=[status_out, recent_out])
 
         gr.Markdown(f"---\n💡 首次使用请用默认账号 `{ADMIN_USER} / {ADMIN_PASS}` 登录")
 
     return app
 
-
 def main():
-    # 启动时自动检查
     ok, _, _ = check_env()
     if not ok:
         logger.warning(f"LLM({LLM_PROVIDER}) 不可用，启动后功能受限")
@@ -715,7 +650,6 @@ def main():
         share=False,
         show_error=True,
     )
-
 
 if __name__ == "__main__":
     main()

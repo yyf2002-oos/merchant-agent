@@ -19,7 +19,6 @@ def profit_analysis(cost: float, price: float, volume: int,
         "margin": round(margin, 2),
     }
 
-
 def price_suggestion(cost: float, target_margin: float = 30.0,
                     platform_fee_rate: float = 0.05) -> dict:
     """根据目标利润率建议售价"""
@@ -34,7 +33,6 @@ def price_suggestion(cost: float, target_margin: float = 30.0,
         "premium_price": round(premium_price, 2),
         "note": "min_price=保本价, competitive=常规价, premium=品牌溢价价",
     }
-
 
 def keyword_score(search_volume: int, competition: int,
                   avg_price: float, cost: float) -> float:

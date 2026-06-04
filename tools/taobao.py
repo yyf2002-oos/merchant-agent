@@ -5,7 +5,6 @@ import time
 from typing import Optional
 import httpx
 
-
 def suggest(q: str) -> list[dict]:
     """获取淘宝搜索下拉联想词
 
@@ -29,7 +28,6 @@ def suggest(q: str) -> list[dict]:
         logger.error(f"Taobao suggest failed: {e}")
         return []
 
-
 def format_suggest_report(suggestions: list[dict], category: str) -> str:
     """格式化下拉词为报告文本"""
     if not suggestions:
@@ -40,5 +38,4 @@ def format_suggest_report(suggestions: list[dict], category: str) -> str:
         lines.append(f"  · {s['keyword']} (热度: {s['count']})")
     lines.append("")
     return "\n".join(lines)
-
 

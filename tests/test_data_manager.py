@@ -12,7 +12,6 @@ from knowledge.data_manager import (
     get_suppliers, get_all_categories,
 )
 
-
 class TestFAQManager:
     def test_get_all_faqs(self):
         faqs = get_all_faqs()
@@ -32,7 +31,6 @@ class TestFAQManager:
         delete_faq(idx)
         assert len(get_all_faqs()) == n_before
 
-
 class TestPriceLibrary:
     def test_get_price(self):
         lib = get_price_library()
@@ -45,7 +43,6 @@ class TestPriceLibrary:
         cats = get_all_categories()
         assert isinstance(cats, list)
         assert len(cats) > 0
-
 
 class TestSuppliers:
     def test_get_suppliers(self):

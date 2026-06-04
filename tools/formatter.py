@@ -14,7 +14,6 @@ def format_product_card(product: dict) -> str:
 └─────────────────────────────────────"""
     return template
 
-
 def format_report(title: str, sections: list[dict]) -> str:
     """格式化报告"""
     lines = [f"\n{'='*50}", f"  {title}", f"{'='*50}"]
@@ -22,7 +21,6 @@ def format_report(title: str, sections: list[dict]) -> str:
         lines.append(f"\n▶ {section.get('heading', '')}")
         lines.append(section.get('content', ''))
     return '\n'.join(lines)
-
 
 def markdown_escape(text: str) -> str:
     """转义 Markdown 特殊字符"""

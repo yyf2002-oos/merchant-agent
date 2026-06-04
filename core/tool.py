@@ -13,7 +13,6 @@ logger.setLevel(getattr(logging, LOG_LEVEL))
 
 _registry: dict[str, dict] = {}
 
-
 def tool(name: str = None, description: str = None):
     """Register a function as a callable tool for LLM agents"""
     def decorator(func: Callable):
@@ -74,7 +73,6 @@ def tool(name: str = None, description: str = None):
         return func
     return decorator
 
-
 def get_definition(name: str) -> dict:
     """Get tool definition by name"""
     entry = _registry.get(name)
@@ -82,11 +80,9 @@ def get_definition(name: str) -> dict:
         raise KeyError(f"Tool '{name}' not found")
     return entry["definition"]
 
-
 def get_all_definitions() -> list[dict]:
     """Get ALL registered tool definitions in OpenAI format"""
     return [entry["definition"] for entry in _registry.values()]
-
 
 def execute(name: str, arguments: dict) -> Any:
     """Execute a tool by name with arguments"""
@@ -105,11 +101,9 @@ def execute(name: str, arguments: dict) -> Any:
         logger.error(f"Tool error: {name}({arguments}): {e}")
         return f"[Tool Error] {name}({arguments}): {e}"
 
-
 def list_tools() -> list[str]:
     """List all registered tool names"""
     return list(_registry.keys())
-
 
 def clear():
     """Clear registry (for testing)"""

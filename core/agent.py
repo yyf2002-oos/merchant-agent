@@ -15,7 +15,6 @@ from llm import call_llm
 logger = logging.getLogger(__name__)
 logger.setLevel(getattr(logging, LOG_LEVEL))
 
-
 class ReActAgent(BaseAgent):
     """Self-driven Agent: ReAct loop + native Function Calling + Plan & Reflect
 
@@ -43,7 +42,6 @@ class ReActAgent(BaseAgent):
         self.light_model = light_model or OLLAMA_FAST_MODEL
         self.temperature = temperature
 
-        # Fallback: if light model uses Ollama but Ollama is unavailable, fall back to main model
         if self.light_model and self.model:
             from llm import _parse_model_spec
             l_prov, _ = _parse_model_spec(self.light_model)
@@ -114,8 +112,6 @@ class ReActAgent(BaseAgent):
 
         return "[错误] 达到最大重试次数", True
 
-    # ── 规划 ──────────────────────────────────────
-
     def _generate_plan(self, user_input: str, tool_defs: list[dict]) -> str:
         """生成执行计划"""
         tool_names = [d["function"]["name"] for d in tool_defs]
@@ -143,8 +139,6 @@ class ReActAgent(BaseAgent):
             {"role": "user", "content": prompt},
         ], model=self.light_model)
         return msg.get("content", "").strip()
-
-    # ── 反思 ──────────────────────────────────────
 
     def _reflect(self, user_input: str, full_messages: list[dict],
                  tool_results: list[str] = None) -> tuple[bool, str]:
@@ -202,8 +196,6 @@ class ReActAgent(BaseAgent):
         )
         return needs_more, reflection
 
-    # ── 主入口 ────────────────────────────────────
-
     def run(
         self,
         input_data: Any,
@@ -214,10 +206,6 @@ class ReActAgent(BaseAgent):
     ) -> dict:
         """Execute Agent task
 
-        Args:
-            input_data: user input
-            session_id: session ID (auto-generates UUID if None)
-            max_rounds: max tool call rounds (default REACT_MAX_ROUNDS)
             mode:
                 react: standard ReAct
                 plan_execute: plan + execute
@@ -236,7 +224,6 @@ class ReActAgent(BaseAgent):
         tool_defs = self._get_tool_defs()
         logger.info(f"Agent[{self.name}] start session={session_id} mode={mode} max_rounds={max_rounds} tools={len(tool_defs)}")
 
-        # ── Build context ──
         ctx = None
         if self.memory:
             ctx = AgentContext(session_id, self.memory)
@@ -249,7 +236,6 @@ class ReActAgent(BaseAgent):
 
         messages.append({"role": "user", "content": user_input})
 
-        # ── Plan phase ──
         plan_text = ""
         if mode in ("plan_execute", "plan_reflect"):
             plan_text = self._generate_plan(user_input, tool_defs)
@@ -258,7 +244,6 @@ class ReActAgent(BaseAgent):
                 "content": f"【执行计划】\n{plan_text}\n\n请严格按照计划执行。",
             })
 
-        # ── Execute phase (ReAct loop + self-correction) ──
         tool_call_count = 0
         final_content = None
         tool_results_log = []
@@ -293,14 +278,12 @@ class ReActAgent(BaseAgent):
                     if has_err:
                         tool_has_error = True
 
-                # ── On error, prompt Agent to correct ──
                 if tool_has_error and _round < max_rounds - 1:
                     messages.append({
                         "role": "system",
                         "content": "⚠️ 上一步工具调用返回了错误，请检查参数后重新尝试，或换一个工具继续。不要重复同样的错误调用。",
                     })
 
-            # ── Reflect phase ──
             reflection = ""
             if mode == "plan_reflect" and tool_call_count > 0:
                 needs_more, reflection = self._reflect(user_input, messages, tool_results_log)
@@ -333,7 +316,6 @@ class ReActAgent(BaseAgent):
             if not final_content:
                 final_content = f"[Agent执行错误] {e}"
 
-        # ── Save to memory ──
         if ctx:
             ctx.add_message("user", user_input)
             if final_content:
